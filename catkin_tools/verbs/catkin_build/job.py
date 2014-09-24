@@ -229,7 +229,7 @@ fi
 export PATH="{path}$PATH"
 export PKG_CONFIG_PATH="{pkgcfg_path}$PKG_CONFIG_PATH"
 export PYTHONPATH="{pythonpath}$PYTHONPATH"
-""".format(**subs))
+""".format(**subs).encode('utf-8'))
         os.close(tmp_dst_handle)
         # Do an atomic rename with os.rename
         os.rename(tmp_dst_path, setup_file_path)
