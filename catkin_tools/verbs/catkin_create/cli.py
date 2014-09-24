@@ -16,7 +16,9 @@ from __future__ import print_function
 
 import os
 
-from catkin_pkg.package_templates import create_package_files, PackageTemplate
+from catkin_pkg.package_templates import create_package_files, create_package_xml, PackageTemplate
+from catkin_pkg.package_templates import PACKAGE_MANIFEST_FILENAME
+from catkin_pkg.package_templates import _safe_write_files as safe_write_files
 
 # Exempt build directories
 # See https://github.com/catkin/catkin_tools/issues/82
@@ -29,6 +31,7 @@ def prepare_arguments(parser):
     subparsers = parser.add_subparsers(dest='subcommand', help='sub-command help')
 
     parser_pkg = subparsers.add_parser('pkg', help='Create a new catkin package.')
+    parser_pkg = subparsers.add_parser('manifest', help='Create a new catkin package.')
 
     parser_pkg.description = (
         "Create a new Catkin package. Note that while the "
@@ -45,9 +48,8 @@ def prepare_arguments(parser):
     add('-p', '--path', action='store', default=os.getcwd(),
         help='The path into which the package should be generated.')
 
-    # TODO: Make this possible
-    # add('--manifest-only', action='store_true', default=False,
-    #     help='Only create a package.xml manifest file and do not generate a CMakeLists.txt')
+    add('--manifest-only', action='store_true', default=False,
+        help='Only create a package.xml manifest file and do not generate a CMakeLists.txt')
 
     # TODO: Make this possible
     # add('--build-type', type=str, choices=['catkin', 'cmake'],
@@ -144,10 +146,17 @@ def main(opts):
             #     build_type = Export('build_type', content=opts.build_type)
             #     package_template.exports.append(build_type)
 
-            create_package_files(target_path=target_path,
-                                 package_template=package_template,
-                                 rosdistro=opts.rosdistro,
-                                 newfiles={})
+            if opts.manifest_only:
+                manifest_path = os.path.join(target_path, PACKAGE_MANIFEST_FILENAME)
+                manifest_data = create_package_xml(
+                    package_template=package_template,
+                    rosdistro=opts.rosdistro)
+                safe_write_files({manifest_path: manifest_data}, target_path)
+            else:
+                create_package_files(target_path=target_path,
+                                     package_template=package_template,
+                                     rosdistro=opts.rosdistro,
+                                     newfiles={})
             print('Successfully created package files in %s.' % target_path)
     except ValueError as vae:
         print(str(vae))
