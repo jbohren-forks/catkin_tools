@@ -52,6 +52,7 @@ def test_build_auto_vanilla():
     os.mkdir(source_space)
     shutil.copytree(os.path.join(RESOURCES_PATH, 'vanilla-cmake-package'), os.path.join(source_space, 'vanilla-cmake-package'))
     shutil.copytree(os.path.join(RESOURCES_PATH, 'dep_on_vanilla'), os.path.join(source_space, 'dep_on_vanilla'))
+    shutil.copytree(os.path.join(RESOURCES_PATH, 'rosbuild_package'), os.path.join(source_space, 'rosbuild_package'))
     out = assert_cmd_success(['catkin', 'build', '--no-notify', '--no-status', '--verbose'])
     assert_no_warnings(out)
 
