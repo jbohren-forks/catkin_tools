@@ -17,6 +17,8 @@ from ..workspace_assertions import assert_workspace_initialized
 from ..workspace_assertions import assert_warning_message
 from ..workspace_assertions import assert_no_warnings
 
+RESOURCES_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'resources')
+
 @in_temporary_directory
 def test_build_no_src():
     out = assert_cmd_failure(['catkin', 'build'])
@@ -41,4 +43,15 @@ def test_build_auto_init_one_pkg():
     out = assert_cmd_success(['catkin', 'build', '--no-notify', '--no-status', '--verbose'])
     assert_no_warnings(out)
     assert_workspace_initialized('.')
+
+@in_temporary_directory
+def test_build_auto_vanilla():
+    cwd = os.getcwd()
+    source_space = os.path.join(cwd, 'src')
+    print("Creating source directory: %s" % source_space)
+    os.mkdir(source_space)
+    shutil.copytree(os.path.join(RESOURCES_PATH, 'vanilla-cmake-package'), os.path.join(source_space, 'vanilla-cmake-package'))
+    shutil.copytree(os.path.join(RESOURCES_PATH, 'dep_on_vanilla'), os.path.join(source_space, 'dep_on_vanilla'))
+    out = assert_cmd_success(['catkin', 'build', '--no-notify', '--no-status', '--verbose'])
+    assert_no_warnings(out)
 
