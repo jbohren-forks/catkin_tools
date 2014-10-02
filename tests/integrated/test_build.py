@@ -43,6 +43,20 @@ def test_build_auto_init_one_pkg():
     assert_workspace_initialized('.')
 
 @in_temporary_directory
+def test_build_whitespace():
+    new_root = "a path with spaces"
+    os.mkdir(new_root)
+    os.chdir(new_root)
+    cwd = os.getcwd()
+    source_space = os.path.join(cwd, 'src')
+    print("Creating source directory: %s" % source_space)
+    os.mkdir(source_space)
+    assert_cmd_success(['catkin', 'create', 'pkg', '--rosdistro', 'hydro', '-p', source_space, 'pkg_a'])
+    out = assert_cmd_success(['catkin', 'build', '--no-notify', '--no-status', '--verbose'])
+    assert_no_warnings(out)
+    assert_workspace_initialized('.')
+
+@in_temporary_directory
 def test_build_eclipse():
     cwd = os.getcwd()
     source_space = os.path.join(cwd, 'src')
