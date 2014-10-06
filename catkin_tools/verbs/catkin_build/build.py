@@ -62,6 +62,7 @@ from .executor import ExecutorEvent
 
 from .job import CatkinJob
 from .job import CMakeJob
+from .job import RakeJob
 
 from .output import OutputController
 
@@ -128,6 +129,8 @@ def queue_ready_packages(ready_packages, running_jobs, job_queue, context, force
             job = CatkinJob(package, path, context, force_cmake)
         elif build_type == 'cmake':
             job = CMakeJob(package, path, context, force_cmake)
+        elif build_type == 'rake-compiler':
+            job = RakeJob(package, path, context, force_cmake)
         running_jobs[package.name] = {
             'package_number': None,
             'job': job,

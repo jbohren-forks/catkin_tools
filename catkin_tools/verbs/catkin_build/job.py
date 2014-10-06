@@ -27,6 +27,7 @@ from .common import get_python_install_dir
 
 MAKE_EXEC = which('make')
 CMAKE_EXEC = which('cmake')
+RAKE_EXEC = which('rake')
 
 
 class Command(object):
@@ -66,11 +67,21 @@ class CMakeCommand(Command):
             raise RuntimeError("Executable 'cmake' could not be found in PATH.")
 
 
+class RakeCommand(Command):
+    stage_name = 'rake'
+
+    def __init__(self, env_loader, cmd, location):
+        super(MakeCommand, self).__init__(env_loader, cmd, location)
+
+        if RAKE_EXEC is None:
+            raise RuntimeError("Executable 'rake' could not be found in PATH.")
+
+
 class InstallCommand(MakeCommand):
 
-    """Command which touches the install space"""
+    """Command which installs targets to the install space."""
     lock_install_space = True
-    stage_name = 'make install'
+    stage_name = 'install'
 
     def __init__(self, env_loader, cmd, location):
         super(InstallCommand, self).__init__(env_loader, cmd, location)
@@ -285,5 +296,43 @@ class CatkinJob(Job):
         ))
         # Make install command, if installing
         if self.context.install:
+            # TODO: use CMake `CMAKE_GENERATOR` variable to determine what
+            # generator to use for installing (i.e. don't just assume it's gnu make)
             commands.append(InstallCommand(env_cmd, [MAKE_EXEC, 'install'], build_space))
+        return commands
+
+class RakeJob(Job):
+
+    """Job class for building plain rake packages"""
+
+    def __init__(self, package, package_path, context, force_cmake):
+        Job.__init__(self, package, package_path, context, force_cmake)
+        self.commands = self.get_commands()
+
+    def get_commands(self):
+        commands = []
+        # Setup build variables
+        pkg_dir = os.path.join(self.context.source_space_abs, self.package_path)
+        build_space = create_build_space(self.context.build_space_abs, self.package.name)
+        if self.context.isolate_devel:
+            devel_space = os.path.join(self.context.devel_space_abs, self.package.name)
+        else:
+            devel_space = self.context.devel_space_abs
+        if self.context.isolate_install:
+            install_space = os.path.join(self.context.install_space_abs, self.package.name)
+        else:
+            install_space = self.context.install_space_abs
+        install_target = install_space if self.context.install else devel_space
+        # Create an environment file
+        env_cmd = create_env_file(self.package, self.context)
+        # Rake command
+        commands.append(RakeCommand(
+            env_cmd,
+            [
+                RAKE_EXEC,
+                'install=' + install_target
+            ],
+            pkg_dir 
+        ))
+
         return commands
