@@ -31,6 +31,9 @@ if CMAKE_EXEC is None:
 MAKE_EXEC = which('make')
 if MAKE_EXEC is None:
     raise RuntimeError("Executable 'make' could not be found in PATH.")
+TRACE_EXEC = which('strace')
+if TRACE_EXEC is None:
+    raise RuntimeError("Executable 'strace' could not be found in PATH.")
 
 
 class Command(object):
@@ -78,11 +81,12 @@ class Job(object):
 
     """Encapsulates a job which builds a package"""
 
-    def __init__(self, package, package_path, context, force_cmake):
+    def __init__(self, package, package_path, context, force_cmake, trace=False):
         self.package = package
         self.package_path = package_path
         self.context = context
         self.force_cmake = force_cmake
+        self.trace = trace
         self.commands = []
         self.__command_index = 0
 
@@ -263,9 +267,14 @@ class CatkinJob(Job):
         # CMake command
         makefile_path = os.path.join(build_space, 'Makefile')
         if not os.path.isfile(makefile_path) or self.force_cmake:
+            if self.trace:
+                cmd_prefix = [TRACE_EXEC, '-r']
+            else:
+                cmd_prefix = []
+
             commands.append(CMakeCommand(
                 env_cmd,
-                [
+                cmd_prefix + [
                     CMAKE_EXEC,
                     pkg_dir,
                     '-DCATKIN_DEVEL_PREFIX=' + devel_space,
