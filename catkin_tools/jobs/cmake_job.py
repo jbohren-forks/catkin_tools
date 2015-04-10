@@ -12,127 +12,50 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
 import os
-import subprocess
+import stat
 import sys
-import tempfile
+
+from multiprocessing import cpu_count
 
 from catkin_tools.argument_parsing import handle_make_arguments
-from catkin_tools.common import get_cached_recursive_build_depends_in_workspace
+
+from catkin_tools.runner import run_command
+
 from catkin_tools.utils import which
 
-from .common import create_build_space
-from .common import generate_env_file
-from .common import get_python_install_dir
+from .commands.cmake import CMakeCommand
+from .commands.cmake import CMAKE_EXEC
+from .commands.make import MakeCommand
+from .commands.make import MAKE_EXEC
+
+from .job import create_build_space
+from .job import create_env_file
+from .job import Job
+
 
 INSTALLWATCH_EXEC = which('installwatch')
-MAKE_EXEC = which('make')
-CMAKE_EXEC = which('cmake')
 
 
-class Command(object):
+def get_python_install_dir():
+    """Returns the same value as the CMake variable PYTHON_INSTALL_DIR
 
-    """Single command which is part of a job"""
-    lock_install_space = False
-    stage_name = ''
+    The PYTHON_INSTALL_DIR variable is normally set from the CMake file:
 
-    def __init__(self, env_loader, cmd, location):
-        self.cmd = [env_loader] + cmd
-        self.cmd_str = ' '.join(self.cmd)
-        self.executable = os.path.basename(cmd[0])
-        self.pretty = ' '.join([self.executable] + cmd[1:])
-        self.plain_cmd = cmd
-        self.plain_cmd_str = ' '.join(self.plain_cmd)
-        self.env_loader = env_loader
-        self.location = location
+        catkin/cmake/python.cmake
 
+    :returns: Python install directory for the system Python
+    :rtype: str
+    """
+    python_install_dir = 'lib'
+    if os.name != 'nt':
+        python_version_xdoty = str(sys.version_info[0]) + '.' + str(sys.version_info[1])
+        python_install_dir = os.path.join(python_install_dir, 'python' + python_version_xdoty)
 
-class MakeCommand(Command):
-    stage_name = 'make'
-
-    def __init__(self, env_loader, cmd, location):
-        super(MakeCommand, self).__init__(env_loader, cmd, location)
-
-        if MAKE_EXEC is None:
-            raise RuntimeError("Executable 'make' could not be found in PATH.")
-
-
-class CMakeCommand(Command):
-    stage_name = 'cmake'
-
-    def __init__(self, env_loader, cmd, location):
-        super(CMakeCommand, self).__init__(env_loader, cmd, location)
-
-        if CMAKE_EXEC is None:
-            raise RuntimeError("Executable 'cmake' could not be found in PATH.")
-
-
-class InstallCommand(MakeCommand):
-
-    """Command which touches the install space"""
-    lock_install_space = True
-    stage_name = 'make install'
-
-    def __init__(self, env_loader, cmd, location):
-        super(InstallCommand, self).__init__(env_loader, cmd, location)
-
-
-class Job(object):
-
-    """Encapsulates a job which builds a package"""
-
-    def __init__(self, package, package_path, context, force_cmake):
-        self.package = package
-        self.package_path = package_path
-        self.context = context
-        self.force_cmake = force_cmake
-        self.commands = []
-        self.__command_index = 0
-
-    def get_commands(self):
-        raise NotImplementedError('get_commands')
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        return self.next()
-
-    def next(self):
-        if self.__command_index >= len(self.commands):
-            raise StopIteration()
-        self.__command_index += 1
-        return self.commands[self.__command_index - 1]
-
-
-def create_env_file(package, context):
-    sources = []
-    source_snippet = '. "{source_path}"'
-    # If installing to isolated folders or not installing, but devel spaces are not merged
-    if (context.install and context.isolate_install) or (not context.install and context.isolate_devel):
-        # Source each package's install or devel space
-        space = context.install_space_abs if context.install else context.devel_space_abs
-        # Get the recursive dependcies
-        depends = get_cached_recursive_build_depends_in_workspace(package, context.packages)
-        # For each dep add a line to source its setup file
-        for dep_pth, dep in depends:
-            source_path = os.path.join(space, dep.name, 'setup.sh')
-            sources.append(source_snippet.format(source_path=source_path))
-    else:
-        # Just source common install or devel space
-        source_path = os.path.join(
-            context.install_space_abs if context.install else context.devel_space_abs,
-            'setup.sh')
-        sources = [source_snippet.format(source_path=source_path)] if os.path.exists(source_path) else []
-    # Build the env_file
-    env_file_path = os.path.abspath(os.path.join(context.build_space_abs, package.name, 'build_env.sh'))
-    generate_env_file(sources, env_file_path)
-    return env_file_path
-
-
-# TODO: Move various Job types out to another file
+    python_use_debian_layout = os.path.exists('/etc/debian_version')
+    python_packages_dir = 'dist-packages' if python_use_debian_layout else 'site-packages'
+    python_install_dir = os.path.join(python_install_dir, python_packages_dir)
+    return python_install_dir
 
 class CMakeJob(Job):
 
@@ -268,59 +191,4 @@ export PYTHONPATH="{pythonpath}$PYTHONPATH"
         os.close(tmp_dst_handle)
         # Do an atomic rename with os.rename
         os.rename(tmp_dst_path, setup_file_path)
-        return commands
-
-
-class CatkinJob(Job):
-
-    """Job class for building catkin packages"""
-
-    def __init__(self, package, package_path, context, force_cmake):
-        Job.__init__(self, package, package_path, context, force_cmake)
-        self.commands = self.get_commands()
-
-    def get_commands(self):
-        commands = []
-        # Setup build variables
-        pkg_dir = os.path.join(self.context.source_space_abs, self.package_path)
-        build_space = create_build_space(self.context.build_space_abs, self.package.name)
-        if self.context.isolate_devel:
-            devel_space = os.path.join(self.context.devel_space_abs, self.package.name)
-        else:
-            devel_space = self.context.devel_space_abs
-        if self.context.isolate_install:
-            install_space = os.path.join(self.context.install_space_abs, self.package.name)
-        else:
-            install_space = self.context.install_space_abs
-        # Create an environment file
-        env_cmd = create_env_file(self.package, self.context)
-        # CMake command
-        makefile_path = os.path.join(build_space, 'Makefile')
-        if not os.path.isfile(makefile_path) or self.force_cmake:
-            commands.append(CMakeCommand(
-                env_cmd,
-                [INSTALLWATCH_EXEC, '-o', os.path.join(self.context.build_space_abs, 'build_logs', '%s_cmake_products.log' % self.package.name)] +
-                [
-                    CMAKE_EXEC,
-                    pkg_dir,
-                    '-DCATKIN_DEVEL_PREFIX=' + devel_space,
-                    '-DCMAKE_INSTALL_PREFIX=' + install_space
-                ] + self.context.cmake_args,
-                build_space
-            ))
-        else:
-            commands.append(MakeCommand(env_cmd, [MAKE_EXEC, 'cmake_check_build_system'], build_space))
-        # Make command
-        make_command = (
-            [INSTALLWATCH_EXEC, '-o', os.path.join(self.context.build_space_abs, 'build_logs', '%s_make_products.log' % self.package.name)] +
-            [MAKE_EXEC] +
-            handle_make_arguments(self.context.make_args + self.context.catkin_make_args))
-        commands.append(MakeCommand(
-            env_cmd,
-            make_command,
-            build_space
-        ))
-        # Make install command, if installing
-        if self.context.install:
-            commands.append(InstallCommand(env_cmd, [MAKE_EXEC, 'install'], build_space))
         return commands

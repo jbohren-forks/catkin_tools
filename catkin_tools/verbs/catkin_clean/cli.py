@@ -23,9 +23,13 @@ from catkin_tools.argument_parsing import add_context_args
 
 from catkin_tools.context import Context
 
+from catkin_tools.jobs.job import get_build_type
+
 from catkin_tools.metadata import update_metadata
 
 from catkin_tools.terminal_color import ColorMapper
+
+from .clean import determine_packages_to_be_cleaned
 
 color_mapper = ColorMapper()
 clr = color_mapper.clr
@@ -73,11 +77,14 @@ def prepare_arguments(parser):
         ' longer enabled or in the source space. This might require'
         ' --force-cmake on the next build.')
 
+    add('packages', metavar='PKGNAME', nargs='*',
+        help='Workspace packages to clean.')
+
     return parser
 
 
 def main(opts):
-    actions = ['all', 'build', 'devel', 'install', 'cmake_cache', 'orphans', 'setup_files']
+    actions = ['all', 'build', 'devel', 'install', 'cmake_cache', 'orphans', 'setup_files', 'packages']
     if not any([v for (k, v) in vars(opts).items() if k in actions]):
         print("[clean] No actions performed. See `catkin clean -h` for usage.")
         return 0
@@ -105,10 +112,42 @@ def main(opts):
     if opts.all:
         opts.build = opts.devel = opts.install = True
 
+    # Remove installspace files
+    if opts.install:
+        if os.path.exists(ctx.install_space_abs):
+            print("[clean] Removing installspace: %s" % ctx.install_space_abs)
+            shutil.rmtree(ctx.install_space_abs)
+
+
+    # Remove develspace files
+    if opts.devel:
+        if os.path.exists(ctx.devel_space_abs):
+            if len(opts.packages) == 0:
+                print("[clean] Removing develspace: %s" % ctx.devel_space_abs)
+                shutil.rmtree(ctx.devel_space_abs)
+            else:
+                clean_packages(ctx, opts.packages)
+    else:
+        if opts.setup_files:
+            print("[clean] Removing setup files from develspace: %s" % ctx.devel_space_abs)
+            for filename in setup_files:
+                full_path = os.path.join(ctx.devel_space_abs, filename)
+                if os.path.exists(full_path):
+                    print(" - Removing %s" % full_path)
+                    os.remove(full_path)
+                    needs_force = True
+
+    # Remove buildspace files
     if opts.build:
         if os.path.exists(ctx.build_space_abs):
-            print("[clean] Removing buildspace: %s" % ctx.build_space_abs)
-            shutil.rmtree(ctx.build_space_abs)
+            if len(opts.packages) == 0:
+                print("[clean] Removing buildspace: %s" % ctx.build_space_abs)
+                shutil.rmtree(ctx.build_space_abs)
+            else:
+                for pkg_name in opts.packages:
+                    if os.path.exists(os.path.join(ctx.build_space_abs, pkg_name)):
+                        print("[clean] Removing buildspace for package: %s" % pkg_name)
+                        shutil.rmtree(ctx.build_space_abs)
     else:
         # Orphan removal
         if opts.orphans:
@@ -162,25 +201,6 @@ def main(opts):
                             needs_force = True
             else:
                 print("[clean] No buildspace exists, no CMake caches to clear.")
-
-    if opts.devel:
-        if os.path.exists(ctx.devel_space_abs):
-            print("[clean] Removing develspace: %s" % ctx.devel_space_abs)
-            shutil.rmtree(ctx.devel_space_abs)
-    else:
-        if opts.setup_files:
-            print("[clean] Removing setup files from develspace: %s" % ctx.devel_space_abs)
-            for filename in setup_files:
-                full_path = os.path.join(ctx.devel_space_abs, filename)
-                if os.path.exists(full_path):
-                    print(" - Removing %s" % full_path)
-                    os.remove(full_path)
-                    needs_force = True
-
-    if opts.install:
-        if os.path.exists(ctx.install_space_abs):
-            print("[clean] Removing installspace: %s" % ctx.install_space_abs)
-            shutil.rmtree(ctx.install_space_abs)
 
     if needs_force:
         print(

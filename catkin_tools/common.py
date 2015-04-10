@@ -239,6 +239,42 @@ def get_recursive_run_depends_in_workspace(packages, ordered_packages):
     return recursive_depends
 
 
+def get_recursive_build_dependants_in_workspace(package, ordered_packages):
+    """Calculates the recursive build dependants of a package which are also in
+    the ordered_packages
+
+    :param package: package for which the recursive depends should be calculated
+    :type package: :py:class:`catkin_pkg.package.Package`
+    :param ordered_packages: packages in the workspace, ordered topologically,
+        stored as a list of tuples of package path and package object
+    :type ordered_packages: list(tuple(package path,
+        :py:class:`catkin_pkg.package.Package`))
+    :returns: list of package path, package object tuples which are the
+        recursive build depends for the given package
+    :rtype: list(tuple(package path, :py:class:`catkin_pkg.package.Package`))
+    """
+    workspace_packages_by_name = dict([(pkg.name, (pth, pkg)) for pth, pkg in ordered_packages])
+    packages_to_check = set([package])
+    recursive_dependants_names = set()
+
+    for pth, pkg in ordered_packages:
+        # Skip if this is one to check
+        if pkg.name in packages_to_check:
+            continue
+        # Get deps for this package
+        deps = set(pkg.build_depends + pkg.buildtool_depends)
+        # Check if this package depends on any of the packages to check
+        if not packages_to_check.isdisjoint(deps):
+            # Add this to the dependants list
+            recursive_dependants_names.add(pkg.name)
+            # Make this a package to check
+            packages_to_check.add(pkg.name)
+
+    recursive_dependants = [workspace_packages_by_name[name] for name in recursive_dependants_names]
+
+    return recursive_dependants
+
+
 def is_tty(stream):
     """Returns True if the given stream is a tty, else False"""
     return hasattr(stream, 'isatty') and stream.isatty()

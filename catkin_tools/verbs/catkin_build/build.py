@@ -56,19 +56,18 @@ from catkin_tools.common import remove_ansi_escape
 from catkin_tools.common import terminal_width
 from catkin_tools.common import wide_log
 
+from catkin_tools.jobs.catkin_job import CatkinJob
+from catkin_tools.jobs.cmake_job import CMakeJob
+from catkin_tools.jobs.job import get_build_type
+
 from catkin_tools.make_jobserver import jobserver_max_jobs
 from catkin_tools.make_jobserver import jobserver_running_jobs
 from catkin_tools.make_jobserver import jobserver_supported
-
-from .common import get_build_type
 
 from .color import clr
 
 from .executor import Executor
 from .executor import ExecutorEvent
-
-from .job import CatkinJob
-from .job import CMakeJob
 
 from .output import OutputController
 

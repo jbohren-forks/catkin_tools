@@ -32,6 +32,8 @@ from catkin_tools.common import find_enclosing_package
 
 from catkin_tools.context import Context
 
+from catkin_tools.jobs.job import get_build_type
+
 from catkin_tools.make_jobserver import set_jobserver_max_mem
 
 from catkin_tools.metadata import find_enclosing_workspace
@@ -42,8 +44,6 @@ from catkin_tools.metadata import update_metadata
 from catkin_tools.resultspace import load_resultspace_environment
 
 from .color import clr
-
-from .common import get_build_type
 
 from .build import build_isolated_workspace
 from .build import determine_packages_to_be_built
