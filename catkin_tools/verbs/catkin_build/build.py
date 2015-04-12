@@ -75,76 +75,6 @@ from .output import OutputController
 BUILDSPACE_MARKER_FILE = '.catkin_tools.yaml'
 DEVELSPACE_MARKER_FILE = '.catkin_tools.yaml'
 
-
-def get_ready_packages(packages, running_jobs, completed, failed=[]):
-    """Returns packages which have no pending depends and are ready to be built
-
-    Iterates through the packages, seeing if any of the packages which
-    are not currently in running_jobs and are not in completed jobs, have all of
-    their build and buildtool depends met, and are there for ready to be queued
-    up and built.
-
-    :param packages: topologically ordered packages in the workspace
-    :type packages: dict
-    :param running_jobs: currently running jobs which are building packages
-    :type running_jobs: dict
-    :param completed: list of packages in the workspace which have been built
-    :type completed: list
-    :param failed: list of packages in the workspace which failed to build
-    :type failed: list
-    :returns: list of package_path, package tuples which should be built
-    :rtype: list
-    """
-    ready_packages = []
-    workspace_packages = [(path, pkg) for path, pkg in packages]
-    for path, package in packages:
-        if package.name in (list(running_jobs.keys()) + completed + failed):
-            continue
-        # Collect build and buildtool depends, plus recursive build, buildtool, and run depends,
-        # Excluding depends which are not in the workspace or which are completed
-        uncompleted_depends = []
-        depends = get_cached_recursive_build_depends_in_workspace(package, workspace_packages)
-        for dep_pth, dep in depends:
-            if dep.name not in completed:
-                uncompleted_depends.append(dep)
-        # If there are no uncompleted dependencies, add this package to the queue
-        if not uncompleted_depends:
-            ready_packages.append((path, package))
-    # Return the new ready_packages
-    return ready_packages
-
-
-def queue_ready_packages(ready_packages, running_jobs, job_queue, context, force_cmake):
-    """Adds packages which are ready to be built to the job queue
-
-    :param ready_packages: packages which are ready to be built
-    :type ready_packages: list
-    :param running_jobs: jobs for building packages which are currently running
-    :type running_jobs: dict
-    :param job_queue: queue to put new jobs in, which will be consumed by executors
-    :type job_queue: :py:class:`multiprocessing.Queue`
-    :param context: context of the build environment
-    :type context: :py:class:`catkin_tools.verbs.catkin_build.context.Context`
-    :param force_cmake: must run cmake if True
-    :type force_cmake: bool
-    :returns: updated running_jobs dict
-    :rtype: dict
-    """
-    for path, package in ready_packages:
-        build_type = get_build_type(package)
-        if build_type == 'catkin':
-            job = CatkinJob(package, path, context, force_cmake)
-        elif build_type == 'cmake':
-            job = CMakeJob(package, path, context, force_cmake)
-        running_jobs[package.name] = {
-            'package_number': None,
-            'job': job,
-            'start_time': None
-        }
-        job_queue.put(job)
-    return running_jobs
-
-
 def determine_packages_to_be_built(packages, context):
     """Returns list of packages which should be built, and those package's deps.
 
@@ -335,6 +265,75 @@ def verify_start_with_option(start_with, packages, all_packages, packages_to_be_
                      .format(start_with, ' '.join(packages)))
 
 
+def get_ready_packages(packages, running_jobs, completed, failed=[]):
+    """Returns packages which have no pending depends and are ready to be built
+
+    Iterates through the packages, seeing if any of the packages which
+    are not currently in running_jobs and are not in completed jobs, have all of
+    their build and buildtool depends met, and are there for ready to be queued
+    up and built.
+
+    :param packages: topologically ordered packages in the workspace
+    :type packages: dict
+    :param running_jobs: currently running jobs which are building packages
+    :type running_jobs: dict
+    :param completed: list of packages in the workspace which have been built
+    :type completed: list
+    :param failed: list of packages in the workspace which failed to build
+    :type failed: list
+    :returns: list of package_path, package tuples which should be built
+    :rtype: list
+    """
+    ready_packages = []
+    workspace_packages = [(path, pkg) for path, pkg in packages]
+    for path, package in packages:
+        if package.name in (list(running_jobs.keys()) + completed + failed):
+            continue
+        # Collect build and buildtool depends, plus recursive build, buildtool, and run depends,
+        # Excluding depends which are not in the workspace or which are completed
+        uncompleted_depends = []
+        depends = get_cached_recursive_build_depends_in_workspace(package, workspace_packages)
+        for dep_pth, dep in depends:
+            if dep.name not in completed:
+                uncompleted_depends.append(dep)
+        # If there are no uncompleted dependencies, add this package to the queue
+        if not uncompleted_depends:
+            ready_packages.append((path, package))
+    # Return the new ready_packages
+    return ready_packages
+
+
+def queue_ready_packages(ready_packages, running_jobs, job_queue, context, force_cmake):
+    """Adds packages which are ready to be built to the job queue
+
+    :param ready_packages: packages which are ready to be built
+    :type ready_packages: list
+    :param running_jobs: jobs for building packages which are currently running
+    :type running_jobs: dict
+    :param job_queue: queue to put new jobs in, which will be consumed by executors
+    :type job_queue: :py:class:`multiprocessing.Queue`
+    :param context: context of the build environment
+    :type context: :py:class:`catkin_tools.verbs.catkin_build.context.Context`
+    :param force_cmake: must run cmake if True
+    :type force_cmake: bool
+    :returns: updated running_jobs dict
+    :rtype: dict
+    """
+    for path, package in ready_packages:
+        build_type = get_build_type(package)
+        if build_type == 'catkin':
+            job = CatkinJob(package, path, context, force_cmake)
+        elif build_type == 'cmake':
+            job = CMakeJob(package, path, context, force_cmake)
+        running_jobs[package.name] = {
+            'package_number': None,
+            'job': job,
+            'start_time': None
+        }
+        job_queue.put(job)
+    return running_jobs
+
+
 def print_error_summary(errors, no_notify, log_dir):
     wide_log(clr("[build] There were '" + str(len(errors)) + "' @!@{rf}errors@|:"))
     if not no_notify:
@@ -462,171 +461,6 @@ def print_build_summary(context, packages_to_be_built, completed_packages, faile
         len(successfuls), len(faileds), len(not_builts)
     ))
 
-
-def build_isolated_workspace(
-    context,
-    packages=None,
-    start_with=None,
-    no_deps=False,
-    jobs=None,
-    force_cmake=False,
-    force_color=False,
-    quiet=False,
-    interleave_output=False,
-    no_status=False,
-    limit_status_rate=0.0,
-    lock_install=False,
-    no_notify=False,
-    continue_on_failure=False,
-    summarize_build=None,
-):
-    """Builds a catkin workspace in isolation
-
-    This function will find all of the packages in the source space, start some
-    executors, feed them packages to build based on dependencies and topological
-    ordering, and then monitor the output of the executors, handling loggings of
-    the builds, starting builds, failing builds, and finishing builds of
-    packages, and handling the shutdown of the executors when appropriate.
-
-    :param context: context in which to build the catkin workspace
-    :type context: :py:class:`catkin_tools.verbs.catkin_build.context.Context`
-    :param packages: list of packages to build, by default their dependencies will also be built
-    :type packages: list
-    :param start_with: package to start with, skipping all packages which proceed it in the topological order
-    :type start_with: str
-    :param no_deps: If True, the dependencies of packages will not be built first
-    :type no_deps: bool
-    :param jobs: number of parallel package build jobs
-    :type jobs: int
-    :param force_cmake: forces invocation of CMake if True, default is False
-    :type force_cmake: bool
-    :param force_color: forces colored output even if terminal does not support it
-    :type force_color: bool
-    :param quiet: suppresses the output of commands unless there is an error
-    :type quiet: bool
-    :param interleave_output: prints the output of commands as they are received
-    :type interleave_output: bool
-    :param no_status: disables status bar
-    :type no_status: bool
-    :param limit_status_rate: rate to which status updates are limited; the default 0, places no limit.
-    :type limit_status_rate: float
-    :param lock_install: causes executors to synchronize on access of install commands
-    :type lock_install: bool
-    :param no_notify: suppresses system notifications
-    :type no_notify: bool
-    :param continue_on_failure: do not stop building other jobs on error
-    :type continue_on_failure: bool
-    :param summarize_build: if True summarizes the build at the end, if None and continue_on_failure is True and the
-        the build fails, then the build will be summarized, but if False it never will be summarized.
-    :type summarize_build: bool
-
-    :raises: SystemExit if buildspace is a file or no packages were found in the source space
-        or if the provided options are invalid
-    """
-    # Assert that the limit_status_rate is valid
-    if limit_status_rate < 0:
-        sys.exit("The value of --status-rate must be greater than or equal to zero.")
-    # If no_deps is given, ensure packages to build are provided
-    if no_deps and packages is None:
-        sys.exit("With --no-deps, you must specify packages to build.")
-    # Make sure there is a build folder and it is not a file
-    if os.path.exists(context.build_space_abs):
-        if os.path.isfile(context.build_space_abs):
-            sys.exit(clr(
-                "@{rf}Error:@| Build space '{0}' exists but is a file and not a folder."
-                .format(context.build_space_abs)))
-    # If it dosen't exist, create it
-    else:
-        log("Creating build space directory, '{0}'".format(context.build_space_abs))
-        os.makedirs(context.build_space_abs)
-
-    # Check for catkin_make droppings
-    if context.corrupted_by_catkin_make():
-        sys.exit(
-            clr("@{rf}Error:@| Build space `{0}` exists but appears to have previously been "
-                "created by the `catkin_make` or `catkin_make_isolated` tool. "
-                "Please choose a different directory to use with `catkin build` "
-                "or clean the build space.").format(context.build_space_abs))
-
-    # Declare a buildspace marker describing the build config for error checking
-    buildspace_marker_data = {
-        'workspace': context.workspace,
-        'profile': context.profile,
-        'install': context.install,
-        'install_space': context.install_space_abs,
-        'devel_space': context.devel_space_abs,
-        'source_space': context.source_space_abs}
-
-    # Check build config
-    if os.path.exists(os.path.join(context.build_space_abs, BUILDSPACE_MARKER_FILE)):
-        with open(os.path.join(context.build_space_abs, BUILDSPACE_MARKER_FILE)) as buildspace_marker_file:
-            existing_buildspace_marker_data = yaml.load(buildspace_marker_file)
-            misconfig_lines = ''
-            for (k, v) in existing_buildspace_marker_data.items():
-                new_v = buildspace_marker_data.get(k, None)
-                if new_v != v:
-                    misconfig_lines += (
-                        '\n - %s: %s (stored) is not %s (commanded)' %
-                        (k, v, new_v))
-            if len(misconfig_lines) > 0:
-                sys.exit(clr(
-                    "\n@{rf}Error:@| Attempting to build a catkin workspace using build space: "
-                    "\"%s\" but that build space's most recent configuration "
-                    "differs from the commanded one in ways which will cause "
-                    "problems. Fix the following options or use @{yf}`catkin "
-                    "clean -b`@| to remove the build space: %s" %
-                    (context.build_space_abs, misconfig_lines)))
-
-    # Write the current build config for config error checking
-    with open(os.path.join(context.build_space_abs, BUILDSPACE_MARKER_FILE), 'w') as buildspace_marker_file:
-        buildspace_marker_file.write(yaml.dump(buildspace_marker_data, default_flow_style=False))
-
-    # Summarize the context
-    summary_notes = []
-    if force_cmake:
-        summary_notes += [clr("@!@{cf}NOTE:@| Forcing CMake to run for each package.")]
-    log(context.summary(summary_notes))
-
-    # Find list of packages in the workspace
-    packages_to_be_built, packages_to_be_built_deps, all_packages = determine_packages_to_be_built(packages, context)
-    if not no_deps:
-        # Extend packages to be built to include their deps
-        packages_to_be_built.extend(packages_to_be_built_deps)
-    # Also resort
-    packages_to_be_built = topological_order_packages(dict(packages_to_be_built))
-    # Check the number of packages to be built
-    if len(packages_to_be_built) == 0:
-        log(clr('[build] No packages to be built.'))
-        return
-
-    # Assert start_with package is in the workspace
-    verify_start_with_option(start_with, packages, all_packages, packages_to_be_built + packages_to_be_built_deps)
-
-    # Remove packages before start_with
-    if start_with is not None:
-        for pkg in packages_to_be_built:
-            if pkg.name != start_with:
-                wide_log("[build] Skipping package '{0}'".format(pkg.name))
-                packages_to_be_built.pop(0)
-            else:
-                break
-
-    execute_jobs(
-        'build',
-        context,
-        jobs,
-        packages,
-        packages_to_be_built,
-        force_cmake,
-        force_color,
-        quiet,
-        interleave_output,
-        no_status,
-        limit_status_rate,
-        lock_install,
-        no_notify,
-        continue_on_failure,
-        summarize_build)
 
 def execute_jobs(
     verb,
@@ -893,3 +727,169 @@ def execute_jobs(
         # Ensure executors go down
         for x in range(jobs):
             job_queue.put(None)
+
+
+def build_isolated_workspace(
+    context,
+    packages=None,
+    start_with=None,
+    no_deps=False,
+    jobs=None,
+    force_cmake=False,
+    force_color=False,
+    quiet=False,
+    interleave_output=False,
+    no_status=False,
+    limit_status_rate=0.0,
+    lock_install=False,
+    no_notify=False,
+    continue_on_failure=False,
+    summarize_build=None,
+):
+    """Builds a catkin workspace in isolation
+
+    This function will find all of the packages in the source space, start some
+    executors, feed them packages to build based on dependencies and topological
+    ordering, and then monitor the output of the executors, handling loggings of
+    the builds, starting builds, failing builds, and finishing builds of
+    packages, and handling the shutdown of the executors when appropriate.
+
+    :param context: context in which to build the catkin workspace
+    :type context: :py:class:`catkin_tools.verbs.catkin_build.context.Context`
+    :param packages: list of packages to build, by default their dependencies will also be built
+    :type packages: list
+    :param start_with: package to start with, skipping all packages which proceed it in the topological order
+    :type start_with: str
+    :param no_deps: If True, the dependencies of packages will not be built first
+    :type no_deps: bool
+    :param jobs: number of parallel package build jobs
+    :type jobs: int
+    :param force_cmake: forces invocation of CMake if True, default is False
+    :type force_cmake: bool
+    :param force_color: forces colored output even if terminal does not support it
+    :type force_color: bool
+    :param quiet: suppresses the output of commands unless there is an error
+    :type quiet: bool
+    :param interleave_output: prints the output of commands as they are received
+    :type interleave_output: bool
+    :param no_status: disables status bar
+    :type no_status: bool
+    :param limit_status_rate: rate to which status updates are limited; the default 0, places no limit.
+    :type limit_status_rate: float
+    :param lock_install: causes executors to synchronize on access of install commands
+    :type lock_install: bool
+    :param no_notify: suppresses system notifications
+    :type no_notify: bool
+    :param continue_on_failure: do not stop building other jobs on error
+    :type continue_on_failure: bool
+    :param summarize_build: if True summarizes the build at the end, if None and continue_on_failure is True and the
+        the build fails, then the build will be summarized, but if False it never will be summarized.
+    :type summarize_build: bool
+
+    :raises: SystemExit if buildspace is a file or no packages were found in the source space
+        or if the provided options are invalid
+    """
+    # Assert that the limit_status_rate is valid
+    if limit_status_rate < 0:
+        sys.exit("The value of --status-rate must be greater than or equal to zero.")
+    # If no_deps is given, ensure packages to build are provided
+    if no_deps and packages is None:
+        sys.exit("With --no-deps, you must specify packages to build.")
+    # Make sure there is a build folder and it is not a file
+    if os.path.exists(context.build_space_abs):
+        if os.path.isfile(context.build_space_abs):
+            sys.exit(clr(
+                "@{rf}Error:@| Build space '{0}' exists but is a file and not a folder."
+                .format(context.build_space_abs)))
+    # If it dosen't exist, create it
+    else:
+        log("Creating build space directory, '{0}'".format(context.build_space_abs))
+        os.makedirs(context.build_space_abs)
+
+    # Check for catkin_make droppings
+    if context.corrupted_by_catkin_make():
+        sys.exit(
+            clr("@{rf}Error:@| Build space `{0}` exists but appears to have previously been "
+                "created by the `catkin_make` or `catkin_make_isolated` tool. "
+                "Please choose a different directory to use with `catkin build` "
+                "or clean the build space.").format(context.build_space_abs))
+
+    # Declare a buildspace marker describing the build config for error checking
+    buildspace_marker_data = {
+        'workspace': context.workspace,
+        'profile': context.profile,
+        'install': context.install,
+        'install_space': context.install_space_abs,
+        'devel_space': context.devel_space_abs,
+        'source_space': context.source_space_abs}
+
+    # Check build config
+    if os.path.exists(os.path.join(context.build_space_abs, BUILDSPACE_MARKER_FILE)):
+        with open(os.path.join(context.build_space_abs, BUILDSPACE_MARKER_FILE)) as buildspace_marker_file:
+            existing_buildspace_marker_data = yaml.load(buildspace_marker_file)
+            misconfig_lines = ''
+            for (k, v) in existing_buildspace_marker_data.items():
+                new_v = buildspace_marker_data.get(k, None)
+                if new_v != v:
+                    misconfig_lines += (
+                        '\n - %s: %s (stored) is not %s (commanded)' %
+                        (k, v, new_v))
+            if len(misconfig_lines) > 0:
+                sys.exit(clr(
+                    "\n@{rf}Error:@| Attempting to build a catkin workspace using build space: "
+                    "\"%s\" but that build space's most recent configuration "
+                    "differs from the commanded one in ways which will cause "
+                    "problems. Fix the following options or use @{yf}`catkin "
+                    "clean -b`@| to remove the build space: %s" %
+                    (context.build_space_abs, misconfig_lines)))
+
+    # Write the current build config for config error checking
+    with open(os.path.join(context.build_space_abs, BUILDSPACE_MARKER_FILE), 'w') as buildspace_marker_file:
+        buildspace_marker_file.write(yaml.dump(buildspace_marker_data, default_flow_style=False))
+
+    # Summarize the context
+    summary_notes = []
+    if force_cmake:
+        summary_notes += [clr("@!@{cf}NOTE:@| Forcing CMake to run for each package.")]
+    log(context.summary(summary_notes))
+
+    # Find list of packages in the workspace
+    packages_to_be_built, packages_to_be_built_deps, all_packages = determine_packages_to_be_built(packages, context)
+    if not no_deps:
+        # Extend packages to be built to include their deps
+        packages_to_be_built.extend(packages_to_be_built_deps)
+    # Also resort
+    packages_to_be_built = topological_order_packages(dict(packages_to_be_built))
+    # Check the number of packages to be built
+    if len(packages_to_be_built) == 0:
+        log(clr('[build] No packages to be built.'))
+        return
+
+    # Assert start_with package is in the workspace
+    verify_start_with_option(start_with, packages, all_packages, packages_to_be_built + packages_to_be_built_deps)
+
+    # Remove packages before start_with
+    if start_with is not None:
+        for pkg in packages_to_be_built:
+            if pkg.name != start_with:
+                wide_log("[build] Skipping package '{0}'".format(pkg.name))
+                packages_to_be_built.pop(0)
+            else:
+                break
+
+    execute_jobs(
+        'build',
+        context,
+        jobs,
+        packages,
+        packages_to_be_built,
+        force_cmake,
+        force_color,
+        quiet,
+        interleave_output,
+        no_status,
+        limit_status_rate,
+        lock_install,
+        no_notify,
+        continue_on_failure,
+        summarize_build)
