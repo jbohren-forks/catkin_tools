@@ -589,11 +589,7 @@ def build_isolated_workspace(
 
     # Find list of packages in the workspace
     packages_to_be_built, packages_to_be_built_deps, all_packages = determine_packages_to_be_built(packages, context)
-    completed_packages = []
-    if no_deps:
-        # Consider deps as "completed"
-        completed_packages.extend(packages_to_be_built_deps)
-    else:
+    if not no_deps:
         # Extend packages to be built to include their deps
         packages_to_be_built.extend(packages_to_be_built_deps)
     # Also resort
@@ -603,10 +599,54 @@ def build_isolated_workspace(
         log(clr('[build] No packages to be built.'))
         return
 
-    max_package_name_length = max([len(pkg.name) for pth, pkg in packages_to_be_built]) if packages_to_be_built else 0
     # Assert start_with package is in the workspace
     verify_start_with_option(start_with, packages, all_packages, packages_to_be_built + packages_to_be_built_deps)
 
+    # Remove packages before start_with
+    if start_with is not None:
+        for pkg in packages_to_be_built:
+            if pkg.name != start_with:
+                wide_log("[build] Skipping package '{0}'".format(pkg.name))
+                packages_to_be_built.pop(0)
+            else:
+                break
+
+    execute_jobs(
+        'build',
+        context,
+        jobs,
+        packages,
+        packages_to_be_built,
+        force_cmake,
+        force_color,
+        quiet,
+        interleave_output,
+        no_status,
+        limit_status_rate,
+        lock_install,
+        no_notify,
+        continue_on_failure,
+        summarize_build)
+
+def execute_jobs(
+    verb,
+    context,
+    jobs,
+    packages,
+    packages_to_be_executed,
+    force_cmake,
+    force_color,
+    quiet,
+    interleave_output,
+    no_status,
+    limit_status_rate,
+    lock_install,
+    no_notify,
+    continue_on_failure,
+    summarize_build):
+    """
+    """
+    completed_packages = []
     # Setup pool of executors
     executors = {}
     # The communication queue can have ExecutorEvent's or str's passed into it from the executors
@@ -636,22 +676,23 @@ def build_isolated_workspace(
         interleave_output = True
     # Start the executors
     for x in range(jobs):
-        e = Executor(x, context, comm_queue, job_queue, install_lock, continue_on_failure)
+        e = Executor(verb, x, context, comm_queue, job_queue, install_lock, continue_on_failure)
         executors[x] = e
         e.start()
 
     try:  # Finally close out now running executors
         # Variables for tracking running jobs and built/building packages
         start = time.time()
-        total_packages = len(packages_to_be_built)
+        total_packages = len(packages_to_be_executed)
         package_count = 0
         running_jobs = {}
         last_status_update_time = time.time()
         limit_status_period = (1.0 / limit_status_rate) if limit_status_rate else 0
-        log_dir = os.path.join(context.build_space_abs, 'build_logs')
+        log_dir = os.path.join(context.build_space_abs, '%s_logs' % verb)
         color = True
         if not force_color and not is_tty(sys.stdout):
             color = True
+        max_package_name_length = max([len(pkg.name) for pth, pkg in packages_to_be_executed]) if packages_to_be_executed else 0
         out = OutputController(log_dir, quiet, interleave_output,
                                color, max_package_name_length, prefix_output=(jobs > 1))
         if no_status:
@@ -660,20 +701,8 @@ def build_isolated_workspace(
         # Prime the job_queue
         ready_packages = []
         failed_packages = []
-        if start_with is None:
-            ready_packages = get_ready_packages(packages_to_be_built, running_jobs, completed_packages)
-        while start_with is not None:
-            ready_packages.extend(get_ready_packages(packages_to_be_built, running_jobs, completed_packages))
-            while ready_packages:
-                pth, pkg = ready_packages.pop(0)
-                if pkg.name != start_with:
-                    completed_packages.append(pkg.name)
-                    package_count += 1
-                    wide_log("[build] Skipping package '{0}'".format(pkg.name))
-                else:
-                    ready_packages.insert(0, (pth, pkg))
-                    start_with = None
-                    break
+
+        ready_packages = get_ready_packages(packages_to_be_executed, running_jobs, completed_packages)
         running_jobs = queue_ready_packages(ready_packages, running_jobs, job_queue, context, force_cmake)
         assert running_jobs
 
@@ -736,7 +765,7 @@ def build_isolated_workspace(
                     if not no_status:
                         wide_log('[build] Calculating new jobs...', end='\r')
                         sys.stdout.flush()
-                    ready_packages = get_ready_packages(packages_to_be_built, running_jobs, completed_packages,
+                    ready_packages = get_ready_packages(packages_to_be_executed, running_jobs, completed_packages,
                                                         failed_packages)
                     running_jobs = queue_ready_packages(ready_packages, running_jobs, job_queue, context, force_cmake)
                     # Make sure there are jobs to be/being processed, otherwise kill the executors
@@ -760,7 +789,7 @@ def build_isolated_workspace(
                     if not no_status:
                         wide_log('[build] Calculating new jobs...', end='\r')
                         sys.stdout.flush()
-                    ready_packages = get_ready_packages(packages_to_be_built, running_jobs, completed_packages,
+                    ready_packages = get_ready_packages(packages_to_be_executed, running_jobs, completed_packages,
                                                         failed_packages)
                     running_jobs = queue_ready_packages(ready_packages, running_jobs, job_queue, context, force_cmake)
                     # Make sure there are jobs to be/being processed, otherwise kill the executors
@@ -806,20 +835,20 @@ def build_isolated_workspace(
                             jobserver_max_jobs(),
                             len(executing_jobs),
                             len(executors),
-                            len(packages) if no_deps else len(completed_packages),
+                            len(completed_packages),
                             total_packages
                         )
                     else:
                         msg_rhs = clr("[{0}/{1} Active | {2}/{3} Completed]").format(
                             len(executing_jobs),
                             len(executors),
-                            len(packages) if no_deps else len(completed_packages),
+                            len(completed_packages),
                             total_packages
                         )
 
                     # Update title bar
                     sys.stdout.write("\x1b]2;[build] {0}/{1}\x07".format(
-                        len(packages) if no_deps else len(completed_packages),
+                        len(completed_packages),
                         total_packages
                     ))
                     # Update status bar
@@ -846,7 +875,7 @@ def build_isolated_workspace(
                 else:
                     _create_unmerged_devel_setup_for_install(context)
             if summarize_build:
-                print_build_summary(context, packages_to_be_built, completed_packages, failed_packages)
+                print_build_summary(context, packages_to_be_executed, completed_packages, failed_packages)
             wide_log("[build] Finished.")
             if not no_notify:
                 notify("Build Finished", "{0} packages built".format(total_packages))
@@ -858,7 +887,7 @@ def build_isolated_workspace(
             # Always print summary if summarize_build is True
             # Conditionally add summary on errors if summarize_build is not explicitly False and
             # continue_on_failure is True.
-            print_build_summary(context, packages_to_be_built, completed_packages, failed_packages)
+            print_build_summary(context, packages_to_be_executed, completed_packages, failed_packages)
         sys.exit(1)
     finally:
         # Ensure executors go down

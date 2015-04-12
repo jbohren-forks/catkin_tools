@@ -44,12 +44,12 @@ class ExecutorEvent(object):
 
 class Executor(Thread):
 
-    """Threaded executor for the parallel catkin build jobs"""
-    name_prefix = 'build'
+    """Threaded executor for the parallel jobs"""
 
-    def __init__(self, executor_id, context, comm_queue, job_queue, install_lock, continue_on_failure=False):
+    def __init__(self, verb, executor_id, context, comm_queue, job_queue, install_lock, continue_on_failure=False):
         super(Executor, self).__init__()
-        self.name = self.name_prefix + '-' + str(executor_id + 1)
+        self.verb = verb
+        self.name = self.verb + '-' + str(executor_id + 1)
         self.executor_id = executor_id
         self.c = context
         self.queue = comm_queue
@@ -149,7 +149,7 @@ class Executor(Thread):
                                     retcode = line
                                     # If the return code is not zero
                                     if retcode != 0:
-                                        # Log the failure (the build loop will dispatch None's)
+                                        # Log the failure (the execute loop will dispatch None's)
                                         self.command_failed(command, command.location, retcode)
                                         job_has_failed = True
                                         break
