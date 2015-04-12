@@ -75,6 +75,7 @@ from .output import OutputController
 BUILDSPACE_MARKER_FILE = '.catkin_tools.yaml'
 DEVELSPACE_MARKER_FILE = '.catkin_tools.yaml'
 
+
 def determine_packages_to_be_built(packages, context):
     """Returns list of packages which should be built, and those package's deps.
 
@@ -858,7 +859,7 @@ def build_isolated_workspace(
     if not no_deps:
         # Extend packages to be built to include their deps
         packages_to_be_built.extend(packages_to_be_built_deps)
-    # Also resort
+    # Also re-sort
     packages_to_be_built = topological_order_packages(dict(packages_to_be_built))
     # Check the number of packages to be built
     if len(packages_to_be_built) == 0:
@@ -870,7 +871,7 @@ def build_isolated_workspace(
 
     # Remove packages before start_with
     if start_with is not None:
-        for pkg in packages_to_be_built:
+        for path, pkg in packages_to_be_built:
             if pkg.name != start_with:
                 wide_log("[build] Skipping package '{0}'".format(pkg.name))
                 packages_to_be_built.pop(0)
