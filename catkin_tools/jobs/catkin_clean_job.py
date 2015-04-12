@@ -49,13 +49,13 @@ class CatkinCleanJob(Job):
         pkg_dir = os.path.join(self.context.source_space_abs, self.package_path)
         # Check if the build space exists
         build_space = os.path.join(self.context.build_space_abs, self.package.name)
-        if not os.path.exists(build_space_abs):
+        if not os.path.exists(build_space):
             return commands
 
         # For isolated devel space, remove it entirely
         if self.context.isolate_devel:
             devel_space = os.path.join(self.context.devel_space_abs, self.package.name)
-            commands.append(CMakeCommand('',[CMAKE_EXEC, '-E', 'remove_directory', devel_space], build_space))
+            commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove_directory', devel_space], build_space))
             return commands
         else:
             devel_space = self.context.devel_space_abs
@@ -63,35 +63,18 @@ class CatkinCleanJob(Job):
         # For isolated install space, remove it entirely
         if self.context.isolate_install:
             install_space = os.path.join(self.context.install_space_abs, self.package.name)
-            commands.append(CMakeCommand('',[CMAKE_EXEC, '-E', 'remove_directory', install_space], build_space))
+            commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove_directory', install_space], build_space))
             return commands
         else:
             install_space = self.context.install_space_abs
 
         # CMake command
         makefile_path = os.path.join(build_space, 'Makefile')
-        if not os.path.isfile(makefile_path) or self.force_cmake:
-            commands.append(CMakeCommand(
-                env_cmd,
-                [INSTALLWATCH_EXEC, '-o', os.path.join(self.context.build_space_abs, 'build_logs', '%s_cmake_products.log' % self.package.name)] +
-                [
-                    CMAKE_EXEC,
-                    pkg_dir,
-                    '-DCATKIN_DEVEL_PREFIX=' + devel_space,
-                    '-DCMAKE_INSTALL_PREFIX=' + install_space
-                ] + self.context.cmake_args,
-                build_space
-            ))
-        else:
-            commands.append(MakeCommand(env_cmd, [MAKE_EXEC, 'cmake_check_build_system'], build_space))
         # Make command
         commands.append(MakeCommand(
-            env_cmd,
-            [MAKE_EXEC] +
-            handle_make_arguments(self.context.make_args + self.context.catkin_make_args),
+            None,
+            [MAKE_EXEC] + ['clean'],
+            #handle_make_arguments(self.context.make_args + self.context.catkin_make_args),
             build_space
         ))
-        # Make install command, if installing
-        if self.context.install:
-            commands.append(InstallCommand(env_cmd, [MAKE_EXEC, 'install'], build_space))
         return commands

@@ -58,6 +58,6 @@ class CMakeCleanJob(Job):
             with open(install_manifest_path) as f:
                 installed_files = f.readlines()
 
-            commands.append(CMakeCommand('',[CMAKE_EXEC, '-E', 'remove', '-f'] + installed_files, build_space))
+            commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove', '-f'] + installed_files, build_space))
 
         return commands

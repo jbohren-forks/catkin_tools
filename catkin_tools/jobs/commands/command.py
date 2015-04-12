@@ -21,7 +21,7 @@ class Command(object):
     stage_name = ''
 
     def __init__(self, env_loader, cmd, location):
-        self.cmd = [env_loader] + cmd
+        self.cmd = [env_loader] + cmd if env_loader else cmd
         self.cmd_str = ' '.join(self.cmd)
         self.executable = os.path.basename(cmd[0])
         self.pretty = ' '.join([self.executable] + cmd[1:])

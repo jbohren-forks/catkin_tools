@@ -39,11 +39,10 @@ from catkin_tools.common import wide_log
 
 from catkin_tools.jobs.catkin_job import CatkinJob
 from catkin_tools.jobs.cmake_job import CMakeJob
+from catkin_tools.jobs.executor import execute_jobs
 from catkin_tools.jobs.job import get_build_type
 
 from .color import clr
-
-from .executor import execute_jobs
 
 
 BUILDSPACE_MARKER_FILE = '.catkin_tools.yaml'

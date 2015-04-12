@@ -288,8 +288,8 @@ def queue_ready_packages(job_factory, ready_packages, running_jobs, job_queue, c
     return running_jobs
 
 
-def print_error_summary(errors, no_notify, log_dir):
-    wide_log(clr("[build] There were '" + str(len(errors)) + "' @!@{rf}errors@|:"))
+def print_error_summary(verb, errors, no_notify, log_dir):
+    wide_log(clr("["+verb+"] There were '" + str(len(errors)) + "' @!@{rf}errors@|:"))
     if not no_notify:
         notify("Build Failed", "there were {0} errors".format(len(errors)))
     for error in errors:
@@ -409,9 +409,9 @@ def print_build_summary(context, packages_to_be_built, completed_packages, faile
         wide_log("All packages built successfully.")
 
     wide_log("")
-    wide_log(clr("[build] @!@{gf}Successfully@| built '@!@{cf}{0}@|' packages, "
-                 "@!@{rf}failed@| to build '@!@{cf}{1}@|' packages, "
-                 "and @!@{kf}did not try to build@| '@!@{cf}{2}@|' packages.").format(
+    wide_log(clr("[{0}] @!@{gf}Successfully@| built '@!@{cf}{1}@|' packages, "
+                 "@!@{rf}failed@| to build '@!@{cf}{2}@|' packages, "
+                 "and @!@{kf}did not try to build@| '@!@{cf}{3}@|' packages.").format(
         len(successfuls), len(faileds), len(not_builts)
     ))
 
@@ -552,7 +552,7 @@ def execute_jobs(
                         continue
                     # Calculate new packages
                     if not no_status:
-                        wide_log('[build] Calculating new jobs...', end='\r')
+                        wide_log('[%s] Calculating new jobs...' % verb, end='\r')
                         sys.stdout.flush()
                     ready_packages = get_ready_packages(packages_to_be_executed, running_jobs, completed_packages,
                                                         failed_packages)
@@ -576,7 +576,7 @@ def execute_jobs(
                         continue
                     # Calculate new packages
                     if not no_status:
-                        wide_log('[build] Calculating new jobs...', end='\r')
+                        wide_log('[%s] Calculating new jobs...' % verb, end='\r')
                         sys.stdout.flush()
                     ready_packages = get_ready_packages(packages_to_be_executed, running_jobs, completed_packages,
                                                         failed_packages)
@@ -636,7 +636,8 @@ def execute_jobs(
                         )
 
                     # Update title bar
-                    sys.stdout.write("\x1b]2;[build] {0}/{1}\x07".format(
+                    sys.stdout.write("\x1b]2;[{0}] {1}/{2}\x07".format(
+                        verb,
                         len(completed_packages),
                         total_packages
                     ))
@@ -653,7 +654,7 @@ def execute_jobs(
                         wide_log(msg, rhs=msg_rhs, end='\r')
                         sys.stdout.flush()
             except (KeyboardInterrupt, EOFError):
-                wide_log("[build] User interrupted, stopping.")
+                wide_log("[%s] User interrupted, stopping." % verb)
                 set_error_state(error_state)
         # All executors have shutdown
         sys.stdout.write("\x1b]2;\x07")
@@ -665,7 +666,7 @@ def execute_jobs(
                     _create_unmerged_devel_setup_for_install(context)
             if summarize_build:
                 print_build_summary(context, packages_to_be_executed, completed_packages, failed_packages)
-            wide_log("[build] Finished.")
+            wide_log("[%s] Finished." % verb)
             if not no_notify:
                 notify("Build Finished", "{0} packages built".format(total_packages))
             return 0

@@ -113,21 +113,21 @@ def main(opts):
     if opts.all:
         opts.build = opts.devel = opts.install = True
 
-    # Remove installspace files
+    # Remove specific packages
+    if len(opts.packages) > 0:
+        clean_packages(ctx, opts.packages, opts.build, opts.devel, opts.install)
+
+    # Remove all installspace files
     if opts.install:
         if os.path.exists(ctx.install_space_abs):
             print("[clean] Removing installspace: %s" % ctx.install_space_abs)
             shutil.rmtree(ctx.install_space_abs)
 
-
-    # Remove develspace files
+    # Remove all develspace files
     if opts.devel:
         if os.path.exists(ctx.devel_space_abs):
-            if len(opts.packages) == 0:
-                print("[clean] Removing develspace: %s" % ctx.devel_space_abs)
-                shutil.rmtree(ctx.devel_space_abs)
-            else:
-                clean_packages(ctx, opts.packages)
+            print("[clean] Removing develspace: %s" % ctx.devel_space_abs)
+            shutil.rmtree(ctx.devel_space_abs)
     else:
         if opts.setup_files:
             print("[clean] Removing setup files from develspace: %s" % ctx.devel_space_abs)
@@ -144,11 +144,6 @@ def main(opts):
             if len(opts.packages) == 0:
                 print("[clean] Removing buildspace: %s" % ctx.build_space_abs)
                 shutil.rmtree(ctx.build_space_abs)
-            else:
-                for pkg_name in opts.packages:
-                    if os.path.exists(os.path.join(ctx.build_space_abs, pkg_name)):
-                        print("[clean] Removing buildspace for package: %s" % pkg_name)
-                        shutil.rmtree(ctx.build_space_abs)
     else:
         # Orphan removal
         if opts.orphans:

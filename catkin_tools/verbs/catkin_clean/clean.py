@@ -16,6 +16,7 @@
 
 import operator
 import os
+import shutil
 import stat
 import sys
 import time
@@ -35,16 +36,16 @@ except ImportError as e:
 from catkin_tools.common import format_time_delta
 from catkin_tools.common import get_cached_recursive_build_depends_in_workspace
 from catkin_tools.common import get_recursive_run_depends_in_workspace
+from catkin_tools.common import get_recursive_build_dependants_in_workspace
 from catkin_tools.common import log
 from catkin_tools.common import wide_log
 
-from catkin_tools.jobs.catkin_job import CatkinJob
-from catkin_tools.jobs.cmake_job import CMakeJob
+from catkin_tools.jobs.catkin_clean_job import CatkinCleanJob
+from catkin_tools.jobs.cmake_clean_job import CMakeCleanJob
+from catkin_tools.jobs.executor import execute_jobs
 from catkin_tools.jobs.job import get_build_type
 
 from .color import clr
-
-from .executor import execute_jobs
 
 def determine_packages_to_be_cleaned(packages, context):
     """Returns list of packages which should be cleaned, and those package's deps.
@@ -98,12 +99,54 @@ def determine_packages_to_be_cleaned(packages, context):
 
     return packages_to_be_cleaned, packages_to_be_cleaned_deps, ordered_packages
 
-def clean_packages(context, packages):
+def clean_job_factory(context, path, package, force_cmake):
+    job = None
+    build_type = get_build_type(package)
+    if build_type == 'catkin':
+        job = CatkinCleanJob(package, path, context, force_cmake)
+    elif build_type == 'cmake':
+        job = CMakeCleanJob(package, path, context, force_cmake)
+    return job
+
+def clean_packages(context, packages, build=True, devel=False, install=False):
 
     packages_to_be_cleaned, packages_to_be_cleaned_deps, ordered_packages = determine_packages_to_be_cleaned(packages, context)
 
-    print(packages_to_be_cleaned)
+    #print(packages_to_be_cleaned)
 
-    for pkg_name in packages_to_be_cleaned:
-        if os.path.exists(os.path.join(ctx.build_space_abs, pkg_name)):
-            print("[clean] Cleaning package: %s" % pkg_name)
+    #for path, pkg in packages_to_be_cleaned:
+        #if os.path.exists(os.path.join(context.build_space_abs, pkg.name)):
+            #print("[clean] Cleaning package: %s" % pkg.name)
+
+    # Use install_manifests to remove files from installspace
+    if install:
+        pass
+
+    # Execute clean jobs to remove files from the develspace
+    if devel:
+        execute_jobs(
+            'clean',
+            context,
+            1, #jobs
+            clean_job_factory,
+            packages,
+            packages_to_be_cleaned,
+            False, #force_cmake,
+            False, #force_color,
+            False, #quiet,
+            True, #interleave_output,
+            False, #no_status,
+            0, #limit_status_rate,
+            False, #lock_install,
+            False, #no_notify,
+            True, #continue_on_failure,
+            False #summarize_build
+        )
+
+    # Remove build directories
+    if build:
+        for pkg_name in packages:
+            build_space = os.path.join(context.build_space_abs, pkg_name)
+            if os.path.exists(build_space):
+                print("[%s] Removing buildspace: %s" % (pkg_name, build_space))
+                shutil.rmtree(context.build_space_abs)
