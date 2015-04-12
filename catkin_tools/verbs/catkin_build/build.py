@@ -304,7 +304,16 @@ def get_ready_packages(packages, running_jobs, completed, failed=[]):
     return ready_packages
 
 
-def queue_ready_packages(ready_packages, running_jobs, job_queue, context, force_cmake):
+def build_job_factory(context, path, package, force_cmake):
+    job = None
+    build_type = get_build_type(package)
+    if build_type == 'catkin':
+        job = CatkinJob(package, path, context, force_cmake)
+    elif build_type == 'cmake':
+        job = CMakeJob(package, path, context, force_cmake)
+    return job
+
+def queue_ready_packages(job_factory, ready_packages, running_jobs, job_queue, context, force_cmake):
     """Adds packages which are ready to be built to the job queue
 
     :param ready_packages: packages which are ready to be built
@@ -321,11 +330,7 @@ def queue_ready_packages(ready_packages, running_jobs, job_queue, context, force
     :rtype: dict
     """
     for path, package in ready_packages:
-        build_type = get_build_type(package)
-        if build_type == 'catkin':
-            job = CatkinJob(package, path, context, force_cmake)
-        elif build_type == 'cmake':
-            job = CMakeJob(package, path, context, force_cmake)
+        job = job_factory(context, path, package, force_cmake)
         running_jobs[package.name] = {
             'package_number': None,
             'job': job,
@@ -467,6 +472,7 @@ def execute_jobs(
     verb,
     context,
     jobs,
+    job_factory,
     packages,
     packages_to_be_executed,
     force_cmake,
@@ -538,7 +544,7 @@ def execute_jobs(
         failed_packages = []
 
         ready_packages = get_ready_packages(packages_to_be_executed, running_jobs, completed_packages)
-        running_jobs = queue_ready_packages(ready_packages, running_jobs, job_queue, context, force_cmake)
+        running_jobs = queue_ready_packages(job_factory, ready_packages, running_jobs, job_queue, context, force_cmake)
         assert running_jobs
 
         error_state = False
@@ -602,7 +608,7 @@ def execute_jobs(
                         sys.stdout.flush()
                     ready_packages = get_ready_packages(packages_to_be_executed, running_jobs, completed_packages,
                                                         failed_packages)
-                    running_jobs = queue_ready_packages(ready_packages, running_jobs, job_queue, context, force_cmake)
+                    running_jobs = queue_ready_packages(job_factory, ready_packages, running_jobs, job_queue, context, force_cmake)
                     # Make sure there are jobs to be/being processed, otherwise kill the executors
                     if not running_jobs:
                         # Kill the executors by sending a None to the job queue for each of them
@@ -626,7 +632,7 @@ def execute_jobs(
                         sys.stdout.flush()
                     ready_packages = get_ready_packages(packages_to_be_executed, running_jobs, completed_packages,
                                                         failed_packages)
-                    running_jobs = queue_ready_packages(ready_packages, running_jobs, job_queue, context, force_cmake)
+                    running_jobs = queue_ready_packages(job_factory, ready_packages, running_jobs, job_queue, context, force_cmake)
                     # Make sure there are jobs to be/being processed, otherwise kill the executors
                     if not running_jobs:
                         # Kill the executors by sending a None to the job queue for each of them
@@ -882,6 +888,7 @@ def build_isolated_workspace(
         'build',
         context,
         jobs,
+        build_job_factory,
         packages,
         packages_to_be_built,
         force_cmake,
