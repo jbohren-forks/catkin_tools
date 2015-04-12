@@ -14,7 +14,9 @@
 
 import os
 import stat
+import subprocess
 import sys
+import tempfile
 
 from multiprocessing import cpu_count
 
@@ -27,11 +29,20 @@ from catkin_tools.utils import which
 from .commands.cmake import CMakeCommand
 from .commands.cmake import CMAKE_EXEC
 from .commands.make import MakeCommand
+from .commands.make import InstallCommand
 from .commands.make import MAKE_EXEC
 
 from .job import create_build_space
 from .job import create_env_file
 from .job import Job
+
+# FileNotFoundError from Python3
+try:
+    FileNotFoundError
+except NameError:
+    class FileNotFoundError(OSError):
+        pass
+
 
 
 INSTALLWATCH_EXEC = which('installwatch')

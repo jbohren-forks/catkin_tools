@@ -108,9 +108,7 @@ def clean_job_factory(context, path, package, force_cmake):
         job = CMakeCleanJob(package, path, context, force_cmake)
     return job
 
-def clean_packages(context, packages, build=True, devel=False, install=False):
-
-    packages_to_be_cleaned, packages_to_be_cleaned_deps, ordered_packages = determine_packages_to_be_cleaned(packages, context)
+def clean_packages(context, packages_to_be_cleaned, build=True, devel=False, install=False):
 
     #print(packages_to_be_cleaned)
 
@@ -129,7 +127,6 @@ def clean_packages(context, packages, build=True, devel=False, install=False):
             context,
             1, #jobs
             clean_job_factory,
-            packages,
             packages_to_be_cleaned,
             False, #force_cmake,
             False, #force_color,
@@ -145,8 +142,10 @@ def clean_packages(context, packages, build=True, devel=False, install=False):
 
     # Remove build directories
     if build:
-        for pkg_name in packages:
-            build_space = os.path.join(context.build_space_abs, pkg_name)
+        for path, pkg in packages_to_be_cleaned:
+            build_space = os.path.join(context.build_space_abs, pkg.name)
             if os.path.exists(build_space):
-                print("[%s] Removing buildspace: %s" % (pkg_name, build_space))
-                shutil.rmtree(context.build_space_abs)
+                log("[%s] Removing package buildspace: %s" % (pkg.name, build_space))
+                shutil.rmtree(build_space)
+            else:
+                log("[%s] Package buildspace is empty: %s" % (pkg.name, build_space))

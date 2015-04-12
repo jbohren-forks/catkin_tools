@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import os
 import stat
 import sys
@@ -68,8 +69,6 @@ class CatkinCleanJob(Job):
         else:
             install_space = self.context.install_space_abs
 
-        # CMake command
-        makefile_path = os.path.join(build_space, 'Makefile')
         # Make command
         commands.append(MakeCommand(
             None,
@@ -77,4 +76,23 @@ class CatkinCleanJob(Job):
             #handle_make_arguments(self.context.make_args + self.context.catkin_make_args),
             build_space
         ))
+
+        # Catkin Config dirs
+        # FIXME: Hacks away!
+        config_products = [
+            os.path.join(devel_space, 'lib', 'pkgconfig', '%s.pc' % self.package.name)]
+
+        commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove', '-f'] + config_products, build_space))
+
+        config_product_dirs = [
+            os.path.join(devel_space, 'include', self.package.name),
+            os.path.join(devel_space, 'lib', self.package.name),
+            os.path.join(devel_space, 'share', self.package.name),
+            os.path.join(devel_space, 'share', 'common-lisp', 'ros', self.package.name)]
+
+        config_product_dirs.extend(glob.glob(os.path.join(devel_space, 'lib', 'python*', 'dist-packages', self.package.name)))
+
+        for config_product_dir in config_product_dirs:
+            commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove_directory', config_product_dir], build_space))
+
         return commands

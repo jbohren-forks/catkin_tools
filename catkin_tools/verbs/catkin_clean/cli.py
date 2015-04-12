@@ -85,7 +85,7 @@ def prepare_arguments(parser):
 
 
 def main(opts):
-    actions = ['all', 'build', 'devel', 'install', 'cmake_cache', 'orphans', 'setup_files', 'packages']
+    actions = ['all', 'build', 'devel', 'install', 'cmake_cache', 'orphans', 'setup_files']
     if not any([v for (k, v) in vars(opts).items() if k in actions]):
         print("[clean] No actions performed. See `catkin clean -h` for usage.")
         return 0
@@ -113,90 +113,84 @@ def main(opts):
     if opts.all:
         opts.build = opts.devel = opts.install = True
 
-    # Remove specific packages
-    if len(opts.packages) > 0:
-        clean_packages(ctx, opts.packages, opts.build, opts.devel, opts.install)
-
-    # Remove all installspace files
-    if opts.install:
-        if os.path.exists(ctx.install_space_abs):
-            print("[clean] Removing installspace: %s" % ctx.install_space_abs)
-            shutil.rmtree(ctx.install_space_abs)
-
-    # Remove all develspace files
-    if opts.devel:
-        if os.path.exists(ctx.devel_space_abs):
-            print("[clean] Removing develspace: %s" % ctx.devel_space_abs)
-            shutil.rmtree(ctx.devel_space_abs)
-    else:
-        if opts.setup_files:
-            print("[clean] Removing setup files from develspace: %s" % ctx.devel_space_abs)
-            for filename in setup_files:
-                full_path = os.path.join(ctx.devel_space_abs, filename)
-                if os.path.exists(full_path):
-                    print(" - Removing %s" % full_path)
-                    os.remove(full_path)
-                    needs_force = True
-
-    # Remove buildspace files
-    if opts.build:
+    # Orphan removal
+    orphaned_packages = []
+    if opts.orphans:
         if os.path.exists(ctx.build_space_abs):
-            if len(opts.packages) == 0:
+            # TODO: Check for merged build and report error
+
+            # Get all enabled packages in source space
+            # Suppress warnings since this is looking for packages which no longer exist
+            found_source_packages = [
+                pkg.name for (path, pkg) in find_packages(ctx.source_space_abs, warnings=[]).items()]
+
+            # Iterate over all packages with build dirs
+            print("[clean] Removing orphaned build directories from %s" % ctx.build_space_abs)
+            no_orphans = True
+            for pkg_build_name in os.listdir(ctx.build_space_abs):
+                if pkg_build_name not in exempt_build_files:
+                    pkg_build_path = os.path.join(ctx.build_space_abs, pkg_build_name)
+                    # Remove package build dir if not found
+                    if pkg_build_name not in found_source_packages:
+                        orphaned_packages.append(pkg_build_name)
+        else:
+            print("[clean] No buildspace exists, no potential for orphans.")
+
+
+    # Remove specific packages
+    if len(opts.packages) > 0 or opts.orphans:
+
+        packages_to_be_cleaned, packages_to_be_cleaned_dependants, ordered_packages = determine_packages_to_be_cleaned(opts.packages, ctx)
+
+        packages_to_be_cleaned.extend(orphaned_packages)
+
+        clean_packages(ctx, packages_to_be_cleaned, opts.build, opts.devel, opts.install)
+    else:
+        # Remove al buildspace files
+        if opts.build:
+            if os.path.exists(ctx.build_space_abs):
                 print("[clean] Removing buildspace: %s" % ctx.build_space_abs)
                 shutil.rmtree(ctx.build_space_abs)
-    else:
-        # Orphan removal
-        if opts.orphans:
-            if os.path.exists(ctx.build_space_abs):
-                # TODO: Check for merged build and report error
 
-                # Get all enabled packages in source space
-                # Suppress warnings since this is looking for packages which no longer exist
-                found_source_packages = [
-                    pkg.name for (path, pkg) in find_packages(ctx.source_space_abs, warnings=[]).items()]
+        # Remove all installspace files
+        if opts.install:
+            if os.path.exists(ctx.install_space_abs):
+                print("[clean] Removing installspace: %s" % ctx.install_space_abs)
+                shutil.rmtree(ctx.install_space_abs)
 
-                # Iterate over all packages with build dirs
-                print("[clean] Removing orphaned build directories from %s" % ctx.build_space_abs)
-                no_orphans = True
-                for pkg_build_name in os.listdir(ctx.build_space_abs):
-                    if pkg_build_name not in exempt_build_files:
-                        pkg_build_path = os.path.join(ctx.build_space_abs, pkg_build_name)
-                        # Remove package build dir if not found
-                        if pkg_build_name not in found_source_packages:
-                            no_orphans = False
-                            print(" - Removing %s" % pkg_build_path)
-                            shutil.rmtree(pkg_build_path)
+        # Remove all develspace files
+        if opts.devel:
+            if os.path.exists(ctx.devel_space_abs):
+                print("[clean] Removing develspace: %s" % ctx.devel_space_abs)
+                shutil.rmtree(ctx.devel_space_abs)
 
-                if no_orphans:
-                    print("[clean] No orphans found, nothing removed from buildspace.")
-                else:
-                    # Remove the develspace
-                    # TODO: For isolated devel, this could just remove individual packages
-                    if os.path.exists(ctx.devel_space_abs):
-                        print("Removing develspace: %s" % ctx.devel_space_abs)
-                        shutil.rmtree(ctx.devel_space_abs)
+    # Setup file removal
+    if opts.setup_files:
+        print("[clean] Removing setup files from develspace: %s" % ctx.devel_space_abs)
+        for filename in setup_files:
+            full_path = os.path.join(ctx.devel_space_abs, filename)
+            if os.path.exists(full_path):
+                print(" - Removing %s" % full_path)
+                os.remove(full_path)
+                needs_force = True
+
+    # CMake Cache removal
+    if opts.cmake_cache:
+        # Clear the CMakeCache for each package
+        if os.path.exists(ctx.build_space_abs):
+            # Remove CMakeCaches
+            print("[clean] Removing CMakeCache.txt files from %s" % ctx.build_space_abs)
+            for pkg_build_name in os.listdir(ctx.build_space_abs):
+                if pkg_build_name not in exempt_build_files:
+                    pkg_build_path = os.path.join(ctx.build_space_abs, pkg_build_name)
+                    ccache_path = os.path.join(pkg_build_path, 'CMakeCache.txt')
+
+                    if os.path.exists(ccache_path):
+                        print(" - Removing %s" % ccache_path)
+                        os.remove(ccache_path)
                         needs_force = True
-            else:
-                print("[clean] No buildspace exists, no potential for orphans.")
-                return 0
-
-        # CMake Cache removal
-        if opts.cmake_cache:
-            # Clear the CMakeCache for each package
-            if os.path.exists(ctx.build_space_abs):
-                # Remove CMakeCaches
-                print("[clean] Removing CMakeCache.txt files from %s" % ctx.build_space_abs)
-                for pkg_build_name in os.listdir(ctx.build_space_abs):
-                    if pkg_build_name not in exempt_build_files:
-                        pkg_build_path = os.path.join(ctx.build_space_abs, pkg_build_name)
-                        ccache_path = os.path.join(pkg_build_path, 'CMakeCache.txt')
-
-                        if os.path.exists(ccache_path):
-                            print(" - Removing %s" % ccache_path)
-                            os.remove(ccache_path)
-                            needs_force = True
-            else:
-                print("[clean] No buildspace exists, no CMake caches to clear.")
+        else:
+            print("[clean] No buildspace exists, no CMake caches to clear.")
 
     if needs_force:
         print(

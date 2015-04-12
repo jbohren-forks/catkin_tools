@@ -422,7 +422,6 @@ def execute_jobs(
     jobs,
     job_factory,
     packages,
-    packages_to_be_executed,
     force_cmake,
     force_color,
     quiet,
@@ -472,7 +471,7 @@ def execute_jobs(
     try:  # Finally close out now running executors
         # Variables for tracking running jobs and built/building packages
         start = time.time()
-        total_packages = len(packages_to_be_executed)
+        total_packages = len(packages)
         package_count = 0
         running_jobs = {}
         last_status_update_time = time.time()
@@ -481,7 +480,7 @@ def execute_jobs(
         color = True
         if not force_color and not is_tty(sys.stdout):
             color = True
-        max_package_name_length = max([len(pkg.name) for pth, pkg in packages_to_be_executed]) if packages_to_be_executed else 0
+        max_package_name_length = max([len(pkg.name) for pth, pkg in packages]) if packages else 0
         out = OutputController(log_dir, quiet, interleave_output,
                                color, max_package_name_length, prefix_output=(jobs > 1))
         if no_status:
@@ -491,7 +490,7 @@ def execute_jobs(
         ready_packages = []
         failed_packages = []
 
-        ready_packages = get_ready_packages(packages_to_be_executed, running_jobs, completed_packages)
+        ready_packages = get_ready_packages(packages, running_jobs, completed_packages)
         running_jobs = queue_ready_packages(job_factory, ready_packages, running_jobs, job_queue, context, force_cmake)
         assert running_jobs
 
@@ -554,7 +553,7 @@ def execute_jobs(
                     if not no_status:
                         wide_log('[%s] Calculating new jobs...' % verb, end='\r')
                         sys.stdout.flush()
-                    ready_packages = get_ready_packages(packages_to_be_executed, running_jobs, completed_packages,
+                    ready_packages = get_ready_packages(packages, running_jobs, completed_packages,
                                                         failed_packages)
                     running_jobs = queue_ready_packages(job_factory, ready_packages, running_jobs, job_queue, context, force_cmake)
                     # Make sure there are jobs to be/being processed, otherwise kill the executors
@@ -578,7 +577,7 @@ def execute_jobs(
                     if not no_status:
                         wide_log('[%s] Calculating new jobs...' % verb, end='\r')
                         sys.stdout.flush()
-                    ready_packages = get_ready_packages(packages_to_be_executed, running_jobs, completed_packages,
+                    ready_packages = get_ready_packages(packages, running_jobs, completed_packages,
                                                         failed_packages)
                     running_jobs = queue_ready_packages(job_factory, ready_packages, running_jobs, job_queue, context, force_cmake)
                     # Make sure there are jobs to be/being processed, otherwise kill the executors
@@ -665,19 +664,20 @@ def execute_jobs(
                 else:
                     _create_unmerged_devel_setup_for_install(context)
             if summarize_build:
-                print_build_summary(context, packages_to_be_executed, completed_packages, failed_packages)
+                print_build_summary(context, packages, completed_packages, failed_packages)
             wide_log("[%s] Finished." % verb)
             if not no_notify:
-                notify("Build Finished", "{0} packages built".format(total_packages))
+                notify("{0} Finished".format(verb.capitalize()),
+                       "{0} packages built".format( total_packages))
             return 0
         # Else, handle errors
-        print_error_summary(errors, no_notify, log_dir)
+        print_error_summary(verb, errors, no_notify, log_dir)
         wide_log("")
         if summarize_build is True or summarize_build is not False and continue_on_failure is True:
             # Always print summary if summarize_build is True
             # Conditionally add summary on errors if summarize_build is not explicitly False and
             # continue_on_failure is True.
-            print_build_summary(context, packages_to_be_executed, completed_packages, failed_packages)
+            print_build_summary(context, packages, completed_packages, failed_packages)
         sys.exit(1)
     finally:
         # Ensure executors go down

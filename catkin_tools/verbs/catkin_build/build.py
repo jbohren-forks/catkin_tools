@@ -402,7 +402,6 @@ def build_isolated_workspace(
         context,
         jobs,
         build_job_factory,
-        packages,
         packages_to_be_built,
         force_cmake,
         force_color,
