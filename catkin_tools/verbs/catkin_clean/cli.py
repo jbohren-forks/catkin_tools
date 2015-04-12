@@ -30,6 +30,7 @@ from catkin_tools.metadata import update_metadata
 from catkin_tools.terminal_color import ColorMapper
 
 from .clean import determine_packages_to_be_cleaned
+from .clean import clean_packages
 
 color_mapper = ColorMapper()
 clr = color_mapper.clr

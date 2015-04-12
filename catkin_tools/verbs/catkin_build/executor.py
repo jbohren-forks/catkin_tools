@@ -45,6 +45,8 @@ from catkin_tools.common import remove_ansi_escape
 from catkin_tools.common import terminal_width
 from catkin_tools.common import wide_log
 
+from catkin_tools.jobs.color import colorize_cmake
+
 from catkin_tools.make_jobserver import jobserver_job
 from catkin_tools.make_jobserver import jobserver_max_jobs
 from catkin_tools.make_jobserver import jobserver_running_jobs
@@ -55,7 +57,6 @@ from catkin_tools.notifications import notify
 from catkin_tools.runner import run_command
 
 from .color import clr
-from .color import colorize_cmake
 
 from .output import OutputController
 
