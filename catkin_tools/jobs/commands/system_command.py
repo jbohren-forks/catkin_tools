@@ -12,21 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from catkin_tools.runner import run_command
+import os
 
-from catkin_tools.utils import which
+from .command import Command
 
-from .system_command import SystemCommand
+class SystemCommand(Command):
 
-CMAKE_EXEC = which('cmake')
-
-
-class CMakeCommand(SystemCommand):
-    stage_name = 'cmake'
+    """Stage of a job which executes a system command"""
 
     def __init__(self, env_loader, cmd, location):
-        super(CMakeCommand, self).__init__(env_loader, cmd, location)
+        super(SystemCommand, self).__init__(location)
+        self.cmd = [env_loader] + cmd if env_loader else cmd
+        self.cmd_str = ' '.join(self.cmd)
+        self.executable = os.path.basename(cmd[0])
+        self.pretty = ' '.join([self.executable] + cmd[1:])
+        self.plain_cmd = cmd
+        self.plain_cmd_str = ' '.join(self.plain_cmd)
+        self.env_loader = env_loader
 
-        if CMAKE_EXEC is None:
-            raise RuntimeError("Executable 'cmake' could not be found in PATH.")
+    def run():
+        return run_command(self.cmd, cwd=self.location)
+
 

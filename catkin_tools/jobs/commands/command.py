@@ -20,14 +20,9 @@ class Command(object):
     lock_install_space = False
     stage_name = ''
 
-    def __init__(self, env_loader, cmd, location):
-        self.cmd = [env_loader] + cmd if env_loader else cmd
-        self.cmd_str = ' '.join(self.cmd)
-        self.executable = os.path.basename(cmd[0])
-        self.pretty = ' '.join([self.executable] + cmd[1:])
-        self.plain_cmd = cmd
-        self.plain_cmd_str = ' '.join(self.plain_cmd)
-        self.env_loader = env_loader
+    def __init__(self, location):
         self.location = location
 
+    def run():
+        raise NotImplementedError()
 

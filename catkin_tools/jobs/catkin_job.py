@@ -34,6 +34,93 @@ from .job import create_env_file
 from .job import Job
 
 INSTALLWATCH_EXEC = which('installwatch')
+DEVEL_MANIFEST_FILE = 'devel_manifest.txt'
+
+def unlink_devel_products(build_space_abs):
+    """
+    Remove all files from the `products` dest list, as well as any empty
+    directories containing those files.
+    """
+
+    # Read in devel_manifest.txt
+    devel_manifest_path = os.path.join(build_space_abs, DEVEL_MANIFEST_FILE)
+    with open(devel_manifest_path, 'rb') as devel_manifest:
+        manifest_reader = csv.reader(devel_manifest, delimiter=' ', quotechar='"')
+
+        # Remove all listed symlinks and empty directories
+        for source_file, dest_file in manifest_reader:
+            if not os.path.exists(dest_file):
+                print("WARNING: Dest file doesn't exist, so it can't be removed: "+dest_file)
+            elif not os.islink(dest_file):
+                print("ERROR: Dest file isn't a symbolic link: "+dest_file)
+                return False
+            elif os.path.realpath(dest_file) != source_file:
+                print("ERROR: Dest file isn't a symbolic link to the expected file: "+dest_file)
+                return False
+            else:
+                # Remove this link
+                os.unlink(dest_file)
+                # Remove any non-empty directories containing this file
+                os.removedirs(os.path.split(dest_file)[0])
+
+    return True
+
+def link_devel_products(build_space_abs, source_devel, dest_devel):
+    """
+    Create directories and symlinks to files
+    """
+
+    # Pair of source/dest files or directories
+    products = []
+
+    for source_path, dirs, files in os.walk(source_devel):
+        # compute destination path
+        dest_path = os.path.join(dest_devel, os.path.relpath(source_path, source_devel))
+
+        # create directories in the destination develspace
+        for dirname for d in dirs:
+            source_dir = os.path.join(source_path, dirname)
+            dest_dir = os.path.join(source_path, dirname)
+
+            if not os.path.exists(dest_dir):
+                # Create the dest directory if it doesn't exist
+                os.path.mkdir(dest_dir)
+            elif not os.path.isdir(dest_dir);
+                print('ERROR: cannot create directory: '+dest_dir)
+                return False
+
+        # create symbolic links from the source to the dest
+        for filename in files:
+            source_file = os.path.join(source_path,filename)
+            dest_file = os.path.join(dest_path,filename)
+
+            # Store the source/dest pair
+            products.append((source_file,dest_file))
+
+            # Check if the symlink exists
+            if os.path.exists(dest_file):
+                if os.path.realpath(dest_file) != os.path.realpath(source_file):
+                    # If the link links to a different file, update it
+                    os.unlink(dest_file)
+                    os.symlink(source_file, dest_file)
+                else:
+                    print('ERROR: cannot create file: '+dest_file)
+                    return False
+            else:
+                # Create the symlink
+                os.symlink(source_file, dest_file)
+
+    # Write out devel_manifest.txt
+    devel_manifest_path = os.path.join(build_space_abs, DEVEL_MANIFEST_FILE)
+
+    # Save the list of symlinked files
+    with open(devel_manifest_path, 'wb') as devel_manifest:
+        manifest_writer = csv.writer(devel_manifest, delimiter=' ', quotechar='"')
+        for source_file, dest_file in products:
+            manifest_writer.writerow([source_file, dest_file])
+
+    return True
+
 
 class CatkinJob(Job):
 
@@ -48,10 +135,12 @@ class CatkinJob(Job):
         # Setup build variables
         pkg_dir = os.path.join(self.context.source_space_abs, self.package_path)
         build_space = create_build_space(self.context.build_space_abs, self.package.name)
+        # Devel space path
         if self.context.isolate_devel:
             devel_space = os.path.join(self.context.devel_space_abs, self.package.name)
         else:
-            devel_space = self.context.devel_space_abs
+            devel_space = os.path.join(build_space, 'devel') #self.context.devel_space_abs
+        # Install space path
         if self.context.isolate_install:
             install_space = os.path.join(self.context.install_space_abs, self.package.name)
         else:

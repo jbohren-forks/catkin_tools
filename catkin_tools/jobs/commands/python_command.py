@@ -12,21 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from catkin_tools.runner import run_command
+from .command import Command
 
-from catkin_tools.utils import which
+class PythonCommand(Command):
 
-from .system_command import SystemCommand
+    """Stage of a job implemented in python"""
 
-CMAKE_EXEC = which('cmake')
+    def __init__(self, function, kwargs, location):
+        super(PythonCommand, self).__init__(location)
+        self.function = function
+        self.kwargs = kwargs
 
+    def run():
+        return function(**kwargs)
 
-class CMakeCommand(SystemCommand):
-    stage_name = 'cmake'
-
-    def __init__(self, env_loader, cmd, location):
-        super(CMakeCommand, self).__init__(env_loader, cmd, location)
-
-        if CMAKE_EXEC is None:
-            raise RuntimeError("Executable 'cmake' could not be found in PATH.")
 

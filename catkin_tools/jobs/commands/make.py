@@ -14,13 +14,13 @@
 
 from catkin_tools.utils import which
 
-from .command import Command
+from .system_command import SystemCommand
 
 
 MAKE_EXEC = which('make')
 
 
-class MakeCommand(Command):
+class MakeCommand(SystemCommand):
     stage_name = 'make'
 
     def __init__(self, env_loader, cmd, location):
