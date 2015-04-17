@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import os
 import stat
 import sys
@@ -78,14 +79,14 @@ def link_devel_products(build_space_abs, source_devel, dest_devel):
         dest_path = os.path.join(dest_devel, os.path.relpath(source_path, source_devel))
 
         # create directories in the destination develspace
-        for dirname for d in dirs:
+        for dirname in dirs:
             source_dir = os.path.join(source_path, dirname)
             dest_dir = os.path.join(source_path, dirname)
 
             if not os.path.exists(dest_dir):
                 # Create the dest directory if it doesn't exist
                 os.path.mkdir(dest_dir)
-            elif not os.path.isdir(dest_dir);
+            elif not os.path.isdir(dest_dir):
                 print('ERROR: cannot create directory: '+dest_dir)
                 return False
 
@@ -122,7 +123,7 @@ def link_devel_products(build_space_abs, source_devel, dest_devel):
     return True
 
 
-class CatkinJob(Job):
+class CatkinBuildJob(Job):
 
     """Job class for building catkin packages"""
 
@@ -138,8 +139,10 @@ class CatkinJob(Job):
         # Devel space path
         if self.context.isolate_devel:
             devel_space = os.path.join(self.context.devel_space_abs, self.package.name)
+        elif self.context.link_devel:
+            devel_space = os.path.join(build_space, 'devel')
         else:
-            devel_space = os.path.join(build_space, 'devel') #self.context.devel_space_abs
+            devel_space = self.context.devel_space_abs
         # Install space path
         if self.context.isolate_install:
             install_space = os.path.join(self.context.install_space_abs, self.package.name)
@@ -152,7 +155,7 @@ class CatkinJob(Job):
         if not os.path.isfile(makefile_path) or self.force_cmake:
             commands.append(CMakeCommand(
                 env_cmd,
-                [INSTALLWATCH_EXEC, '-o', os.path.join(self.context.build_space_abs, 'build_logs', '%s_cmake_products.log' % self.package.name)] +
+                #[INSTALLWATCH_EXEC, '-o', os.path.join(self.context.build_space_abs, 'build_logs', '%s_cmake_products.log' % self.package.name)] +
                 [
                     CMAKE_EXEC,
                     pkg_dir,
@@ -173,4 +176,66 @@ class CatkinJob(Job):
         # Make install command, if installing
         if self.context.install:
             commands.append(InstallCommand(env_cmd, [MAKE_EXEC, 'install'], build_space))
+        return commands
+
+
+class CatkinCleanJob(Job):
+
+    """Job class for building catkin packages"""
+
+    def __init__(self, package, package_path, context, force_cmake):
+        Job.__init__(self, package, package_path, context, force_cmake)
+        self.commands = self.get_commands()
+
+    def get_commands(self):
+        commands = []
+        # Setup build variables
+        pkg_dir = os.path.join(self.context.source_space_abs, self.package_path)
+        # Check if the build space exists
+        build_space = os.path.join(self.context.build_space_abs, self.package.name)
+        if not os.path.exists(build_space):
+            return commands
+
+        # For isolated devel space, remove it entirely
+        if self.context.isolate_devel:
+            devel_space = os.path.join(self.context.devel_space_abs, self.package.name)
+            commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove_directory', devel_space], build_space))
+            return commands
+        else:
+            devel_space = self.context.devel_space_abs
+
+        # For isolated install space, remove it entirely
+        if self.context.isolate_install:
+            install_space = os.path.join(self.context.install_space_abs, self.package.name)
+            commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove_directory', install_space], build_space))
+            return commands
+        else:
+            install_space = self.context.install_space_abs
+
+        # Make command
+        commands.append(MakeCommand(
+            None,
+            [MAKE_EXEC] + ['clean'],
+            #handle_make_arguments(self.context.make_args + self.context.catkin_make_args),
+            build_space
+        ))
+
+        # Catkin Config dirs
+        # FIXME: Hacks away!
+        config_products = [
+            os.path.join(devel_space, 'lib', 'pkgconfig', '%s.pc' % self.package.name)]
+
+        commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove', '-f'] + config_products, build_space))
+
+        config_product_dirs = [
+            os.path.join(devel_space, 'include', self.package.name),
+            os.path.join(devel_space, 'lib', self.package.name),
+            os.path.join(devel_space, 'share', self.package.name),
+            os.path.join(devel_space, 'share', 'common-lisp', 'ros', self.package.name)]
+
+        config_product_dirs.extend(glob.glob(os.path.join(devel_space, 'lib', 'python*', 'dist-packages', self.package.name)))
+
+        for config_product_dir in config_product_dirs:
+            commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove_directory', config_product_dir], build_space))
+
         return commands

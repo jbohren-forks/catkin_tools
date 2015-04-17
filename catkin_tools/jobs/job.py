@@ -22,6 +22,8 @@ import tempfile
 
 from multiprocessing import cpu_count
 
+from catkin_tools.common import get_cached_recursive_build_depends_in_workspace
+
 from catkin_tools.runner import run_command
 
 # Due to portability issues, it uses only POSIX-compliant shell features.

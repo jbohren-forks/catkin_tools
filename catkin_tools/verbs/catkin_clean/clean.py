@@ -40,8 +40,8 @@ from catkin_tools.common import get_recursive_build_dependants_in_workspace
 from catkin_tools.common import log
 from catkin_tools.common import wide_log
 
-from catkin_tools.jobs.catkin_clean_job import CatkinCleanJob
-from catkin_tools.jobs.cmake_clean_job import CMakeCleanJob
+from catkin_tools.jobs.catkin import CatkinCleanJob
+from catkin_tools.jobs.cmake import CMakeCleanJob
 from catkin_tools.jobs.executor import execute_jobs
 from catkin_tools.jobs.job import get_build_type
 
