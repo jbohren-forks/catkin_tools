@@ -43,6 +43,17 @@ from .catkin_templates import *
 DEVEL_MANIFEST_FILENAME = 'devel_manifest.txt'
 DOT_CATKIN_FILENAME = '.catkin'
 
+devel_product_blacklist = [
+    DOT_CATKIN_FILENAME,
+    DOT_ROSINSTALL_FILNAME,
+    ENV_SH_FILENAME,
+    SETUP_BASH_FILENAME,
+    SETUP_ZSH_FILENAME,
+    SETUP_SH_FILENAME,
+    SETUP_UTIL_PY_FILENAME]
+
+CATKIN_TOOLS_COLLISIONS_FILENAME = '.catkin_tools_collisions'
+
 # Synchronize access to the .catkin file
 dot_catkin_file_lock = threading.Lock()
 dest_collisions_file_lock = threading.Lock()
@@ -80,12 +91,9 @@ def clear_dot_catkin_file(devel_space_abs, package_source_abs):
             with open(dot_catkin_filename_abs, 'r') as dot_catkin_file:
                 dot_catkin_paths = dot_catkin_file.read().split(';')
             if package_source_abs in dot_catkin_paths:
+                dot_catkin_paths = [p for p in dot_catkin_paths if p != package_source_abs]
                 with open(dot_catkin_filename_abs, 'wb') as dot_catkin_file:
                     dot_catkin_file.write(';'.join(dot_catkin_paths))
-
-        else:
-            with open(dot_catkin_filename_abs, 'w+') as dot_catkin_file:
-                dot_catkin_file.write(package_source_abs)
     return 0
 
 
@@ -130,7 +138,7 @@ def generate_setup_files(devel_space_abs):
 
     return 0
 
-def unlink_devel_products(build_space_abs):
+def unlink_devel_products(build_space_abs, dest_devel):
     """
     Remove all files from the `products` dest list, as well as any empty
     directories containing those files.
@@ -148,10 +156,10 @@ def unlink_devel_products(build_space_abs):
         for source_file, dest_file in manifest_reader:
             if not os.path.exists(dest_file):
                 print("WARNING: Dest file doesn't exist, so it can't be removed: "+dest_file)
-            elif not os.islink(dest_file):
+            elif not os.path.islink(dest_file):
                 print("ERROR: Dest file isn't a symbolic link: "+dest_file)
                 return -1
-            elif os.path.realpath(dest_file) != source_file:
+            elif False and os.path.realpath(dest_file) != source_file:
                 print("ERROR: Dest file isn't a symbolic link to the expected file: "+dest_file)
                 return -1
             else:
@@ -160,20 +168,9 @@ def unlink_devel_products(build_space_abs):
 
     # Remove all listed symlinks and empty directories which have been removed
     # after this build, and update the collision file
-    clean_files(dest_devel, files_that_collide, files_to_clean)
+    clean_files(dest_devel, [], files_to_clean)
 
     return 0
-
-devel_product_blacklist = [
-    DOT_CATKIN_FILENAME,
-    DOT_ROSINSTALL_FILNAME,
-    ENV_SH_FILENAME,
-    SETUP_BASH_FILENAME,
-    SETUP_ZSH_FILENAME,
-    SETUP_SH_FILENAME,
-    SETUP_UTIL_PY_FILENAME]
-
-CATKIN_TOOLS_COLLISIONS_FILENAME = '.catkin_tools_collisions'
 
 def clean_files(dest_devel, files_that_collide, files_to_clean):
     """
@@ -412,6 +409,8 @@ class CatkinCleanJob(Job):
             devel_space = os.path.join(self.context.devel_space_abs, self.package.name)
             commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove_directory', devel_space], build_space))
             return commands
+        elif self.context.link_devel:
+            devel_space = os.path.join(build_space, 'devel')
         else:
             devel_space = self.context.devel_space_abs
 
@@ -423,30 +422,20 @@ class CatkinCleanJob(Job):
         else:
             install_space = self.context.install_space_abs
 
-        # Make command
-        commands.append(MakeCommand(
-            None,
-            [MAKE_EXEC] + ['clean'],
-            #handle_make_arguments(self.context.make_args + self.context.catkin_make_args),
-            build_space
-        ))
+        # Symlink command if linked devel
+        if self.context.link_devel:
+            commands.extend([
+                PythonCommand(
+                    unlink_devel_products,
+                    {'build_space_abs':os.path.join(self.context.build_space_abs, self.package.name),
+                     'dest_devel':self.context.devel_space_abs},
+                    build_space),
+                PythonCommand(
+                    clear_dot_catkin_file,
+                    { 'devel_space_abs':self.context.devel_space_abs,
+                     'package_source_abs':os.path.join(self.context.source_space_abs, self.package_path)},
+                    build_space),
+            ])
 
-        # Catkin Config dirs
-        # FIXME: Hacks away!
-        config_products = [
-            os.path.join(devel_space, 'lib', 'pkgconfig', '%s.pc' % self.package.name)]
-
-        commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove', '-f'] + config_products, build_space))
-
-        config_product_dirs = [
-            os.path.join(devel_space, 'include', self.package.name),
-            os.path.join(devel_space, 'lib', self.package.name),
-            os.path.join(devel_space, 'share', self.package.name),
-            os.path.join(devel_space, 'share', 'common-lisp', 'ros', self.package.name)]
-
-        config_product_dirs.extend(glob.glob(os.path.join(devel_space, 'lib', 'python*', 'dist-packages', self.package.name)))
-
-        for config_product_dir in config_product_dirs:
-            commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove_directory', config_product_dir], build_space))
 
         return commands
