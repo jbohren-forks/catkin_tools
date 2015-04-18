@@ -22,8 +22,10 @@ class PythonCommand(Command):
         super(PythonCommand, self).__init__(location)
         self.function = function
         self.kwargs = kwargs
+        self.cmd = 'py'
+        self.cmd_str = str(function)+": "+str(kwargs)
 
-    def run():
-        return function(**kwargs)
+    def run(self):
+        return [self.function(**self.kwargs)]
 
 

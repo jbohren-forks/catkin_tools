@@ -14,7 +14,10 @@
 
 import os
 
+from catkin_tools.runner import run_command
+
 from .command import Command
+
 
 class SystemCommand(Command):
 
@@ -30,7 +33,7 @@ class SystemCommand(Command):
         self.plain_cmd_str = ' '.join(self.plain_cmd)
         self.env_loader = env_loader
 
-    def run():
+    def run(self):
         return run_command(self.cmd, cwd=self.location)
 
 

@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import csv
 import glob
 import os
 import stat
 import sys
+import threading
 
 from multiprocessing import cpu_count
 
@@ -29,13 +31,84 @@ from .commands.cmake import CMakeCommand
 from .commands.cmake import CMAKE_EXEC
 from .commands.make import MakeCommand
 from .commands.make import MAKE_EXEC
+from .commands.python_command import PythonCommand
 
 from .job import create_build_space
 from .job import create_env_file
 from .job import Job
 
-INSTALLWATCH_EXEC = which('installwatch')
-DEVEL_MANIFEST_FILE = 'devel_manifest.txt'
+from .catkin_templates import *
+
+#INSTALLWATCH_EXEC = which('installwatch')
+DEVEL_MANIFEST_FILENAME = 'devel_manifest.txt'
+DOT_CATKIN_FILENAME = '.catkin'
+
+# Synchronize access to the .catkin file
+dot_catkin_file_lock = threading.Lock()
+
+def append_dot_catkin_file(devel_space_abs, package_source_abs):
+    """
+    Append the package source path to the .catkin file in the merged devel space
+
+    This is normally done by catkin.
+    """
+
+    with dot_catkin_file_lock:
+        if not os.path.exists(devel_space_abs):
+            os.mkdir(devel_space_abs)
+        dot_catkin_filename_abs = os.path.join(devel_space_abs, DOT_CATKIN_FILENAME)
+        if os.path.exists(dot_catkin_filename_abs):
+            with open(dot_catkin_filename_abs, 'r') as dot_catkin_file:
+                dot_catkin_paths = dot_catkin_file.read().split(';')
+            if package_source_abs not in dot_catkin_paths:
+                with open(dot_catkin_filename_abs, 'ab') as dot_catkin_file:
+                    dot_catkin_file.write(';%s' % package_source_abs)
+        else:
+            with open(dot_catkin_filename_abs, 'w+') as dot_catkin_file:
+                dot_catkin_file.write(package_source_abs)
+    return 0
+
+
+def generate_setup_files(devel_space_abs):
+    """
+    Generate catkin setup files if they don't exist.
+
+    This is normally done by catkin.
+    """
+
+    dot_rosinstall_file_path = os.path.join(devel_space_abs, DOT_ROSINSTALL_FILNAME)
+    env_sh_file_path = os.path.join(devel_space_abs, ENV_SH_FILENAME)
+    setup_bash_file_path = os.path.join(devel_space_abs, SETUP_BASH_FILENAME)
+    setup_sh_file_path = os.path.join(devel_space_abs, SETUP_SH_FILENAME)
+    setup_zsh_file_path = os.path.join(devel_space_abs, SETUP_ZSH_FILENAME)
+
+    if not os.path.exists(dot_rosinstall_file_path):
+        with open(dot_rosinstall_file_path, 'wb') as dot_rosinstall_file:
+            dot_rosinstall_file.write(
+                DOT_ROSINSTALL_FILE_TEMPLATE.replace(
+                    '@SETUP_DIR@', devel_space_abs))
+
+    if not os.path.exists(env_sh_file_path):
+        with open(env_sh_file_path, 'wb') as env_sh_file:
+            env_sh_file.write(
+                ENV_SH_FILE_TEMPLATE.replace(
+                    '@SETUP_FILENAME@', SETUP_SH_FILENAME_STEM))
+
+    if not os.path.exists(setup_bash_file_path):
+        with open(setup_bash_file_path, 'wb') as setup_bash_file:
+            setup_bash_file.write(SETUP_BASH_FILE_TEMPLATE)
+
+    if not os.path.exists(setup_sh_file_path):
+        with open(setup_sh_file_path, 'wb') as setup_sh_file:
+                setup_sh_file.write(
+                    SETUP_SH_FILE_TEMPLATE.replace(
+                        '@SETUP_DIR@', devel_space_abs))
+
+    if not os.path.exists(setup_zsh_file_path):
+        with open(setup_zsh_file_path, 'wb') as setup_zsh_file:
+            setup_zsh_file.write(SETUP_ZSH_FILE_TEMPLATE)
+
+    return 0
 
 def unlink_devel_products(build_space_abs):
     """
@@ -44,7 +117,7 @@ def unlink_devel_products(build_space_abs):
     """
 
     # Read in devel_manifest.txt
-    devel_manifest_path = os.path.join(build_space_abs, DEVEL_MANIFEST_FILE)
+    devel_manifest_path = os.path.join(build_space_abs, DEVEL_MANIFEST_FILENAME)
     with open(devel_manifest_path, 'rb') as devel_manifest:
         manifest_reader = csv.reader(devel_manifest, delimiter=' ', quotechar='"')
 
@@ -54,17 +127,26 @@ def unlink_devel_products(build_space_abs):
                 print("WARNING: Dest file doesn't exist, so it can't be removed: "+dest_file)
             elif not os.islink(dest_file):
                 print("ERROR: Dest file isn't a symbolic link: "+dest_file)
-                return False
+                return -1
             elif os.path.realpath(dest_file) != source_file:
                 print("ERROR: Dest file isn't a symbolic link to the expected file: "+dest_file)
-                return False
+                return -1
             else:
                 # Remove this link
                 os.unlink(dest_file)
                 # Remove any non-empty directories containing this file
                 os.removedirs(os.path.split(dest_file)[0])
 
-    return True
+    return 0
+
+devel_product_blacklist = [
+    DOT_CATKIN_FILENAME,
+    DOT_ROSINSTALL_FILNAME,
+    ENV_SH_FILENAME,
+    SETUP_BASH_FILENAME,
+    SETUP_ZSH_FILENAME,
+    SETUP_SH_FILENAME,
+    SETUP_UTIL_PY_FILENAME]
 
 def link_devel_products(build_space_abs, source_devel, dest_devel):
     """
@@ -81,17 +163,21 @@ def link_devel_products(build_space_abs, source_devel, dest_devel):
         # create directories in the destination develspace
         for dirname in dirs:
             source_dir = os.path.join(source_path, dirname)
-            dest_dir = os.path.join(source_path, dirname)
+            dest_dir = os.path.join(dest_path, dirname)
 
             if not os.path.exists(dest_dir):
                 # Create the dest directory if it doesn't exist
-                os.path.mkdir(dest_dir)
+                os.mkdir(dest_dir)
             elif not os.path.isdir(dest_dir):
                 print('ERROR: cannot create directory: '+dest_dir)
-                return False
+                return -1
 
         # create symbolic links from the source to the dest
         for filename in files:
+
+            if source_path == source_devel and filename in devel_product_blacklist:
+                continue
+
             source_file = os.path.join(source_path,filename)
             dest_file = os.path.join(dest_path,filename)
 
@@ -102,17 +188,17 @@ def link_devel_products(build_space_abs, source_devel, dest_devel):
             if os.path.exists(dest_file):
                 if os.path.realpath(dest_file) != os.path.realpath(source_file):
                     # If the link links to a different file, update it
-                    os.unlink(dest_file)
-                    os.symlink(source_file, dest_file)
-                else:
-                    print('ERROR: cannot create file: '+dest_file)
-                    return False
+                    #os.unlink(dest_file)
+                    #os.symlink(source_file, dest_file)
+                    print('ERROR: Cannot symlink from %s to %s' % (source_file, dest_file))
+                    return -1
             else:
                 # Create the symlink
+                print('Symlinking from %s to %s' % (source_file, dest_file))
                 os.symlink(source_file, dest_file)
 
     # Write out devel_manifest.txt
-    devel_manifest_path = os.path.join(build_space_abs, DEVEL_MANIFEST_FILE)
+    devel_manifest_path = os.path.join(build_space_abs, DEVEL_MANIFEST_FILENAME)
 
     # Save the list of symlinked files
     with open(devel_manifest_path, 'wb') as devel_manifest:
@@ -120,7 +206,7 @@ def link_devel_products(build_space_abs, source_devel, dest_devel):
         for source_file, dest_file in products:
             manifest_writer.writerow([source_file, dest_file])
 
-    return True
+    return 0
 
 
 class CatkinBuildJob(Job):
@@ -173,6 +259,27 @@ class CatkinBuildJob(Job):
             handle_make_arguments(self.context.make_args + self.context.catkin_make_args),
             build_space
         ))
+
+        # Symlink command if linked devel
+        if self.context.link_devel:
+            commands.extend([
+                PythonCommand(
+                    append_dot_catkin_file,
+                    { 'devel_space_abs':self.context.devel_space_abs,
+                     'package_source_abs':os.path.join(self.context.source_space_abs, self.package_path)},
+                    build_space),
+                PythonCommand(
+                    generate_setup_files,
+                    {'devel_space_abs':self.context.devel_space_abs},
+                    build_space),
+                PythonCommand(
+                    link_devel_products,
+                    {'build_space_abs':self.context.build_space_abs,
+                     'source_devel':devel_space,
+                     'dest_devel':self.context.devel_space_abs},
+                    build_space),
+            ])
+
         # Make install command, if installing
         if self.context.install:
             commands.append(InstallCommand(env_cmd, [MAKE_EXEC, 'install'], build_space))
