@@ -82,8 +82,9 @@ def determine_packages_to_be_cleaned(packages, context):
     # First assert all of the packages given are in the workspace
     workspace_package_names = dict([(pkg.name, (path, pkg)) for path, pkg in ordered_packages])
     for package in packages:
+        # This is ok if it's orphaned
         if package not in workspace_package_names:
-            sys.exit("Given package '{0}' is not in the workspace".format(package))
+            continue
         # If metapackage, include run depends which are in the workspace
         package_obj = workspace_package_names[package][1]
         if 'metapackage' in [e.tagname for e in package_obj.exports]:

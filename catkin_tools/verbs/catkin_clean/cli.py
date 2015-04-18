@@ -16,6 +16,7 @@ from __future__ import print_function
 
 import os
 import shutil
+import sys
 
 from catkin_pkg.packages import find_packages
 
@@ -37,7 +38,7 @@ clr = color_mapper.clr
 
 # Exempt build directories
 # See https://github.com/catkin/catkin_tools/issues/82
-exempt_build_files = ['build_logs', '.catkin_tools.yaml']
+exempt_build_files = ['build_logs', 'clean_logs', '.catkin_tools.yaml']
 
 setup_files = ['.catkin', 'env.sh', 'setup.bash', 'setup.sh', 'setup.zsh', '_setup_util.py']
 
@@ -74,7 +75,7 @@ def prepare_arguments(parser):
         help='Clear the catkin-generated files in order to rebase onto another workspace.')
 
     add('-o', '--orphans', action='store_true', default=False,
-        help='Remove only build directories whose source packages are no'
+        help='Remove products from source packages are no'
         ' longer enabled or in the source space. This might require'
         ' --force-cmake on the next build.')
 
@@ -118,7 +119,6 @@ def main(opts):
         opts.build = opts.devel = opts.install = True
 
     # Orphan removal
-    orphaned_packages = []
     if opts.orphans:
         if os.path.exists(ctx.build_space_abs):
             # TODO: Check for merged build and report error
@@ -130,23 +130,30 @@ def main(opts):
 
             # Iterate over all packages with build dirs
             print("[clean] Removing orphaned build directories from %s" % ctx.build_space_abs)
-            no_orphans = True
+            orphans = []
             for pkg_build_name in os.listdir(ctx.build_space_abs):
                 if pkg_build_name not in exempt_build_files:
                     pkg_build_path = os.path.join(ctx.build_space_abs, pkg_build_name)
                     # Remove package build dir if not found
                     if pkg_build_name not in found_source_packages:
-                        orphaned_packages.append(pkg_build_name)
+                        orphans.append(pkg_build_name)
+
+            if len(orphans) > 0:
+                print("[clean] Removing orphaned packages: ")
+                for pkg_name in orphans:
+                    print("[clean] - %s" % pkg_name)
+
+                opts.packages.extend(orphans)
+            else:
+                sys.exit("No orphans in the workspace.")
         else:
             print("[clean] No buildspace exists, no potential for orphans.")
 
     # Remove specific packages
-    if len(opts.packages) > 0 or opts.orphans:
+    if len(opts.packages) > 0:
 
         packages_to_be_cleaned, packages_to_be_cleaned_dependants, ordered_packages = determine_packages_to_be_cleaned(
             opts.packages, ctx)
-
-        packages_to_be_cleaned.extend(orphaned_packages)
 
         if not opts.no_deps:
             packages_to_be_cleaned.extend(packages_to_be_cleaned_dependants)
