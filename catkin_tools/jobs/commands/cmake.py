@@ -29,4 +29,3 @@ class CMakeCommand(SystemCommand):
 
         if CMAKE_EXEC is None:
             raise RuntimeError("Executable 'cmake' could not be found in PATH.")
-

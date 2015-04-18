@@ -14,6 +14,7 @@
 
 from .command import Command
 
+
 class PythonCommand(Command):
 
     """Stage of a job implemented in python"""
@@ -23,9 +24,7 @@ class PythonCommand(Command):
         self.function = function
         self.kwargs = kwargs
         self.cmd = 'py'
-        self.cmd_str = str(function)+": "+str(kwargs)
+        self.cmd_str = str(function) + ": " + str(kwargs)
 
     def run(self):
         return [self.function(**self.kwargs)]
-
-

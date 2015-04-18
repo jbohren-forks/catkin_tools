@@ -264,7 +264,7 @@ class CMakeCleanJob(Job):
         dirs_to_remove = set()
         for path in sorted(dirs_to_check, key=lambda k: -len(k.split(os.path.sep))):
             # Get the absolute path to all the files currently in this directory
-            files = [os.path.join(path,f) for f in os.listdir(path)]
+            files = [os.path.join(path, f) for f in os.listdir(path)]
             # Filter out the files which we intend to remove
             files = [f for f in files if f not in installed_files]
             # Compute the minimum number of files potentially contained in this path

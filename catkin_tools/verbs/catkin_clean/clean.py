@@ -47,6 +47,7 @@ from catkin_tools.jobs.job import get_build_type
 
 from .color import clr
 
+
 def determine_packages_to_be_cleaned(packages, context):
     """Returns list of packages which should be cleaned, and those package's deps.
 
@@ -99,6 +100,7 @@ def determine_packages_to_be_cleaned(packages, context):
 
     return packages_to_be_cleaned, packages_to_be_cleaned_deps, ordered_packages
 
+
 def clean_job_factory(context, path, package, force_cmake):
     job = None
     build_type = get_build_type(package)
@@ -108,13 +110,14 @@ def clean_job_factory(context, path, package, force_cmake):
         job = CMakeCleanJob(package, path, context, force_cmake)
     return job
 
+
 def clean_packages(context, packages_to_be_cleaned, build=True, devel=False, install=False):
 
-    #print(packages_to_be_cleaned)
+    # print(packages_to_be_cleaned)
 
-    #for path, pkg in packages_to_be_cleaned:
-        #if os.path.exists(os.path.join(context.build_space_abs, pkg.name)):
-            #print("[clean] Cleaning package: %s" % pkg.name)
+    # for path, pkg in packages_to_be_cleaned:
+        # if os.path.exists(os.path.join(context.build_space_abs, pkg.name)):
+            # print("[clean] Cleaning package: %s" % pkg.name)
 
     # Use install_manifests to remove files from installspace
     if install:
@@ -125,19 +128,19 @@ def clean_packages(context, packages_to_be_cleaned, build=True, devel=False, ins
         execute_jobs(
             'clean',
             context,
-            1, #jobs
+            1,  # jobs
             clean_job_factory,
             packages_to_be_cleaned,
-            False, #force_cmake,
-            False, #force_color,
-            False, #quiet,
-            True, #interleave_output,
-            False, #no_status,
-            0, #limit_status_rate,
-            False, #lock_install,
-            False, #no_notify,
-            True, #continue_on_failure,
-            False #summarize_build
+            False,  # force_cmake,
+            False,  # force_color,
+            False,  # quiet,
+            True,  # interleave_output,
+            False,  # no_status,
+            0,  # limit_status_rate,
+            False,  # lock_install,
+            False,  # no_notify,
+            True,  # continue_on_failure,
+            False  # summarize_build
         )
 
     # Remove build directories

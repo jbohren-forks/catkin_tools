@@ -136,11 +136,11 @@ def main(opts):
         else:
             print("[clean] No buildspace exists, no potential for orphans.")
 
-
     # Remove specific packages
     if len(opts.packages) > 0 or opts.orphans:
 
-        packages_to_be_cleaned, packages_to_be_cleaned_dependants, ordered_packages = determine_packages_to_be_cleaned(opts.packages, ctx)
+        packages_to_be_cleaned, packages_to_be_cleaned_dependants, ordered_packages = determine_packages_to_be_cleaned(
+            opts.packages, ctx)
 
         packages_to_be_cleaned.extend(orphaned_packages)
 

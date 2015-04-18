@@ -179,4 +179,3 @@ class Job(object):
             raise StopIteration()
         self.__command_index += 1
         return self.commands[self.__command_index - 1]
-

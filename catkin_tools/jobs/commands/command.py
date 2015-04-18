@@ -14,6 +14,7 @@
 
 import os
 
+
 class Command(object):
 
     """Single command which is part of a job"""
@@ -25,4 +26,3 @@ class Command(object):
 
     def run():
         raise NotImplementedError()
-

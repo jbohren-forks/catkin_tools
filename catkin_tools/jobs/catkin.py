@@ -39,7 +39,6 @@ from .job import Job
 
 from .catkin_templates import *
 
-#INSTALLWATCH_EXEC = which('installwatch')
 DEVEL_MANIFEST_FILENAME = 'devel_manifest.txt'
 DOT_CATKIN_FILENAME = '.catkin'
 
@@ -57,6 +56,7 @@ CATKIN_TOOLS_COLLISIONS_FILENAME = '.catkin_tools_collisions'
 # Synchronize access to the .catkin file
 dot_catkin_file_lock = threading.Lock()
 dest_collisions_file_lock = threading.Lock()
+
 
 def append_dot_catkin_file(devel_space_abs, package_source_abs):
     """
@@ -79,6 +79,7 @@ def append_dot_catkin_file(devel_space_abs, package_source_abs):
             with open(dot_catkin_filename_abs, 'w+') as dot_catkin_file:
                 dot_catkin_file.write(package_source_abs)
     return 0
+
 
 def clear_dot_catkin_file(devel_space_abs, package_source_abs):
     """
@@ -128,15 +129,16 @@ def generate_setup_files(devel_space_abs):
 
     if not os.path.exists(setup_sh_file_path):
         with open(setup_sh_file_path, 'wb') as setup_sh_file:
-                setup_sh_file.write(
-                    SETUP_SH_FILE_TEMPLATE.replace(
-                        '@SETUP_DIR@', devel_space_abs))
+            setup_sh_file.write(
+                SETUP_SH_FILE_TEMPLATE.replace(
+                    '@SETUP_DIR@', devel_space_abs))
 
     if not os.path.exists(setup_zsh_file_path):
         with open(setup_zsh_file_path, 'wb') as setup_zsh_file:
             setup_zsh_file.write(SETUP_ZSH_FILE_TEMPLATE)
 
     return 0
+
 
 def unlink_devel_products(build_space_abs, dest_devel):
     """
@@ -155,12 +157,12 @@ def unlink_devel_products(build_space_abs, dest_devel):
         # Remove all listed symlinks and empty directories
         for source_file, dest_file in manifest_reader:
             if not os.path.exists(dest_file):
-                print("WARNING: Dest file doesn't exist, so it can't be removed: "+dest_file)
+                print("WARNING: Dest file doesn't exist, so it can't be removed: " + dest_file)
             elif not os.path.islink(dest_file):
-                print("ERROR: Dest file isn't a symbolic link: "+dest_file)
+                print("ERROR: Dest file isn't a symbolic link: " + dest_file)
                 return -1
             elif False and os.path.realpath(dest_file) != source_file:
-                print("ERROR: Dest file isn't a symbolic link to the expected file: "+dest_file)
+                print("ERROR: Dest file isn't a symbolic link to the expected file: " + dest_file)
                 return -1
             else:
                 # Clean the file or decrement the collision count
@@ -171,6 +173,7 @@ def unlink_devel_products(build_space_abs, dest_devel):
     clean_files(dest_devel, [], files_to_clean)
 
     return 0
+
 
 def clean_files(dest_devel, files_that_collide, files_to_clean):
     """
@@ -188,7 +191,7 @@ def clean_files(dest_devel, files_that_collide, files_to_clean):
         if os.path.exists(collisions_file_path):
             with open(collisions_file_path, 'rb') as collisions_file:
                 collisions_reader = csv.reader(collisions_file, delimiter=' ', quotechar='"')
-                dest_collisions = dict([(path, int(count)) for path,count in collisions_reader])
+                dest_collisions = dict([(path, int(count)) for path, count in collisions_reader])
 
         # Add collisions
         for dest_file in files_that_collide:
@@ -255,7 +258,7 @@ def link_devel_products(build_space_abs, source_devel, dest_devel):
                 # Create the dest directory if it doesn't exist
                 os.mkdir(dest_dir)
             elif not os.path.isdir(dest_dir):
-                print('ERROR: cannot create directory: '+dest_dir)
+                print('ERROR: cannot create directory: ' + dest_dir)
                 return -1
 
         # create symbolic links from the source to the dest
@@ -264,16 +267,17 @@ def link_devel_products(build_space_abs, source_devel, dest_devel):
             if source_path == source_devel and filename in devel_product_blacklist:
                 continue
 
-            source_file = os.path.join(source_path,filename)
-            dest_file = os.path.join(dest_path,filename)
+            source_file = os.path.join(source_path, filename)
+            dest_file = os.path.join(dest_path, filename)
 
             # Store the source/dest pair
-            products.append((source_file,dest_file))
+            products.append((source_file, dest_file))
 
             # Check if the symlink exists
             if os.path.exists(dest_file):
                 if os.path.realpath(dest_file) != os.path.realpath(source_file):
-                    # If the link links to a different file, report a warning and increment the collision counter for this path
+                    # If the link links to a different file, report a warning and increment
+                    # the collision counter for this path
                     print('WARNING: Cannot symlink from %s to existing file %s' % (source_file, dest_file))
                     # Increment link collision counter
                     files_that_collide.append(dest_file)
@@ -281,7 +285,6 @@ def link_devel_products(build_space_abs, source_devel, dest_devel):
                 # Create the symlink
                 print('Symlinking from %s to %s' % (source_file, dest_file))
                 os.symlink(source_file, dest_file)
-
 
     devel_manifest_path = os.path.join(build_space_abs, DEVEL_MANIFEST_FILENAME)
 
@@ -342,7 +345,6 @@ class CatkinBuildJob(Job):
         if not os.path.isfile(makefile_path) or self.force_cmake:
             commands.append(CMakeCommand(
                 env_cmd,
-                #[INSTALLWATCH_EXEC, '-o', os.path.join(self.context.build_space_abs, 'build_logs', '%s_cmake_products.log' % self.package.name)] +
                 [
                     CMAKE_EXEC,
                     pkg_dir,
@@ -366,18 +368,18 @@ class CatkinBuildJob(Job):
             commands.extend([
                 PythonCommand(
                     append_dot_catkin_file,
-                    { 'devel_space_abs':self.context.devel_space_abs,
-                     'package_source_abs':os.path.join(self.context.source_space_abs, self.package_path)},
+                    {'devel_space_abs': self.context.devel_space_abs,
+                     'package_source_abs': os.path.join(self.context.source_space_abs, self.package_path)},
                     build_space),
                 PythonCommand(
                     generate_setup_files,
-                    {'devel_space_abs':self.context.devel_space_abs},
+                    {'devel_space_abs': self.context.devel_space_abs},
                     build_space),
                 PythonCommand(
                     link_devel_products,
-                    {'build_space_abs':os.path.join(self.context.build_space_abs, self.package.name),
-                     'source_devel':devel_space,
-                     'dest_devel':self.context.devel_space_abs},
+                    {'build_space_abs': os.path.join(self.context.build_space_abs, self.package.name),
+                     'source_devel': devel_space,
+                     'dest_devel': self.context.devel_space_abs},
                     build_space),
             ])
 
@@ -407,7 +409,7 @@ class CatkinCleanJob(Job):
         # For isolated devel space, remove it entirely
         if self.context.isolate_devel:
             devel_space = os.path.join(self.context.devel_space_abs, self.package.name)
-            commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove_directory', devel_space], build_space))
+            commands.append(CMakeCommand(None, [CMAKE_EXEC, '-E', 'remove_directory', devel_space], build_space))
             return commands
         elif self.context.link_devel:
             devel_space = os.path.join(build_space, 'devel')
@@ -417,7 +419,7 @@ class CatkinCleanJob(Job):
         # For isolated install space, remove it entirely
         if self.context.isolate_install:
             install_space = os.path.join(self.context.install_space_abs, self.package.name)
-            commands.append(CMakeCommand(None,[CMAKE_EXEC, '-E', 'remove_directory', install_space], build_space))
+            commands.append(CMakeCommand(None, [CMAKE_EXEC, '-E', 'remove_directory', install_space], build_space))
             return commands
         else:
             install_space = self.context.install_space_abs
@@ -427,15 +429,14 @@ class CatkinCleanJob(Job):
             commands.extend([
                 PythonCommand(
                     unlink_devel_products,
-                    {'build_space_abs':os.path.join(self.context.build_space_abs, self.package.name),
-                     'dest_devel':self.context.devel_space_abs},
+                    {'build_space_abs': os.path.join(self.context.build_space_abs, self.package.name),
+                     'dest_devel': self.context.devel_space_abs},
                     build_space),
                 PythonCommand(
                     clear_dot_catkin_file,
-                    { 'devel_space_abs':self.context.devel_space_abs,
-                     'package_source_abs':os.path.join(self.context.source_space_abs, self.package_path)},
+                    {'devel_space_abs': self.context.devel_space_abs,
+                     'package_source_abs': os.path.join(self.context.source_space_abs, self.package_path)},
                     build_space),
             ])
-
 
         return commands

@@ -35,5 +35,3 @@ class SystemCommand(Command):
 
     def run(self):
         return run_command(self.cmd, cwd=self.location)
-
-

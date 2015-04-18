@@ -188,7 +188,7 @@ class Executor(Thread):
                             # Log that the command being run
                             self.command_started(command, command.location)
                             # Receive lines from the running command
-                            for line in command.run():# run_command(command.cmd, cwd=command.location):
+                            for line in command.run():  # run_command(command.cmd, cwd=command.location):
                                 # If it is an integer, it corresponds to the command's return code
                                 if isinstance(line, int):
                                     retcode = line
@@ -232,6 +232,7 @@ class Executor(Thread):
             import traceback
             self.quit(traceback.format_exc() + str(exc))
             raise
+
 
 def get_ready_packages(packages, running_jobs, completed, failed=[]):
     """Returns packages which have no pending depends and are ready to be built
@@ -299,7 +300,7 @@ def queue_ready_packages(job_factory, ready_packages, running_jobs, job_queue, c
 
 
 def print_error_summary(verb, errors, no_notify, log_dir):
-    wide_log(clr("["+verb+"] There were '" + str(len(errors)) + "' @!@{rf}errors@|:"))
+    wide_log(clr("[" + verb + "] There were '" + str(len(errors)) + "' @!@{rf}errors@|:"))
     if not no_notify:
         notify("Build Failed", "there were {0} errors".format(len(errors)))
     for error in errors:
@@ -427,21 +428,21 @@ def print_build_summary(context, packages_to_be_built, completed_packages, faile
 
 
 def execute_jobs(
-    verb,
-    context,
-    jobs,
-    job_factory,
-    packages,
-    force_cmake,
-    force_color,
-    quiet,
-    interleave_output,
-    no_status,
-    limit_status_rate,
-    lock_install,
-    no_notify,
-    continue_on_failure,
-    summarize_build):
+        verb,
+        context,
+        jobs,
+        job_factory,
+        packages,
+        force_cmake,
+        force_color,
+        quiet,
+        interleave_output,
+        no_status,
+        limit_status_rate,
+        lock_install,
+        no_notify,
+        continue_on_failure,
+        summarize_build):
     """
     """
     completed_packages = []
@@ -565,7 +566,8 @@ def execute_jobs(
                         sys.stdout.flush()
                     ready_packages = get_ready_packages(packages, running_jobs, completed_packages,
                                                         failed_packages)
-                    running_jobs = queue_ready_packages(job_factory, ready_packages, running_jobs, job_queue, context, force_cmake)
+                    running_jobs = queue_ready_packages(
+                        job_factory, ready_packages, running_jobs, job_queue, context, force_cmake)
                     # Make sure there are jobs to be/being processed, otherwise kill the executors
                     if not running_jobs:
                         # Kill the executors by sending a None to the job queue for each of them
@@ -589,7 +591,8 @@ def execute_jobs(
                         sys.stdout.flush()
                     ready_packages = get_ready_packages(packages, running_jobs, completed_packages,
                                                         failed_packages)
-                    running_jobs = queue_ready_packages(job_factory, ready_packages, running_jobs, job_queue, context, force_cmake)
+                    running_jobs = queue_ready_packages(
+                        job_factory, ready_packages, running_jobs, job_queue, context, force_cmake)
                     # Make sure there are jobs to be/being processed, otherwise kill the executors
                     if not running_jobs:
                         # Kill the executors by sending a None to the job queue for each of them
@@ -678,7 +681,7 @@ def execute_jobs(
             wide_log("[%s] Finished." % verb)
             if not no_notify:
                 notify("{0} Finished".format(verb.capitalize()),
-                       "{0} packages built".format( total_packages))
+                       "{0} packages built".format(total_packages))
             return 0
         # Else, handle errors
         print_error_summary(verb, errors, no_notify, log_dir)

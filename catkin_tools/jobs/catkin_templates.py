@@ -4,7 +4,7 @@ ENV_SH_FILENAME = 'env.sh'
 SETUP_BASH_FILENAME = 'setup.bash'
 SETUP_ZSH_FILENAME = 'setup.zsh'
 SETUP_SH_FILENAME_STEM = 'setup'
-SETUP_SH_FILENAME = '.'.join([SETUP_SH_FILENAME_STEM,'sh'])
+SETUP_SH_FILENAME = '.'.join([SETUP_SH_FILENAME_STEM, 'sh'])
 SETUP_UTIL_PY_FILENAME = '_setup_util.py'
 
 # TODO: Replace these with templates stored in `share/catkin/cmake/templates`
@@ -18,7 +18,8 @@ ENV_SH_FILE_TEMPLATE = """#!/usr/bin/env sh
 
 if [ $# -eq 0 ] ; then
   /bin/echo "Usage: env.sh COMMANDS"
-  /bin/echo "Calling env.sh without arguments is not supported anymore. Instead spawn a subshell and source a setup file manually."
+  /bin/echo "Calling env.sh without arguments is not supported anymore. Instead spawn a subshell and source a setup\
+ file manually."
   exit 1
 fi
 
@@ -141,7 +142,7 @@ unset _i
 unset _CATKIN_ENVIRONMENT_HOOKS_COUNT
 """
 
-SETUP_UTIL_PY_TEMPLATE="""#!/usr/bin/env python
+SETUP_UTIL_PY_TEMPLATE = """#!/usr/bin/env python
 
 # Software License Agreement (BSD License)
 #
@@ -217,7 +218,8 @@ def rollback_env_variables(environ, env_var_subfolders):
             environ[key] = value
             lines.append(assignment(key, value))
     if lines:
-        lines.insert(0, comment('reset environment variables by unrolling modifications based on all workspaces in CMAKE_PREFIX_PATH'))
+        lines.insert(0, comment('reset environment variables by unrolling modifications based on all workspaces in\
+ CMAKE_PREFIX_PATH'))
     return lines
 
 
@@ -262,7 +264,8 @@ def _get_workspaces(environ, include_fuerte=False, include_non_existing=False):
     value = environ[env_name] if env_name in environ else ''
     paths = [path for path in value.split(os.pathsep) if path]
     # remove non-workspace paths
-    workspaces = [path for path in paths if os.path.isfile(os.path.join(path, CATKIN_MARKER_FILE)) or (include_fuerte and path.startswith('/opt/ros/fuerte')) or (include_non_existing and not os.path.exists(path))]
+    workspaces = [path for path in paths if os.path.isfile(os.path.join(path, CATKIN_MARKER_FILE)) or (include_fuerte\
+ and path.startswith('/opt/ros/fuerte')) or (include_non_existing and not os.path.exists(path))]
     return workspaces
 
 
@@ -288,7 +291,8 @@ def prepend_env_variables(environ, env_var_subfolders, workspaces):
 
 def _prefix_env_variable(environ, name, paths, subfolder):
     '''
-    Return the prefix to prepend to the environment variable NAME, adding any path in NEW_PATHS_STR without creating duplicate or empty items.
+    Return the prefix to prepend to the environment variable NAME, adding any path in NEW_PATHS_STR without creating\
+ duplicate or empty items.
     '''
     value = environ[name] if name in environ else ''
     environ_paths = [path for path in value.split(os.pathsep) if path]
@@ -343,9 +347,11 @@ def find_env_hooks(environ, cmake_prefix_path):
     generic_env_hooks_by_filename = {}
     specific_env_hooks_by_filename = {}
     generic_env_hook_ext = 'bat' if IS_WINDOWS else 'sh'
-    specific_env_hook_ext = environ['CATKIN_SHELL'] if not IS_WINDOWS and 'CATKIN_SHELL' in environ and environ['CATKIN_SHELL'] else None
+    specific_env_hook_ext = environ['CATKIN_SHELL'] if not IS_WINDOWS and 'CATKIN_SHELL' in environ and\
+ environ['CATKIN_SHELL'] else None
     # remove non-workspace paths
-    workspaces = [path for path in cmake_prefix_path.split(os.pathsep) if path and os.path.isfile(os.path.join(path, CATKIN_MARKER_FILE))]
+    workspaces = [path for path in cmake_prefix_path.split(os.pathsep) if path and\
+ os.path.isfile(os.path.join(path, CATKIN_MARKER_FILE))]
     for workspace in reversed(workspaces):
         env_hook_dir = os.path.join(workspace, 'etc', 'catkin', 'profile.d')
         if os.path.isdir(env_hook_dir):
@@ -382,7 +388,8 @@ def find_env_hooks(environ, cmake_prefix_path):
 
 def _parse_arguments(args=None):
     parser = argparse.ArgumentParser(description='Generates code blocks for the setup.SHELL script.')
-    parser.add_argument('--extend', action='store_true', help='Skip unsetting previous environment variables to extend context')
+    parser.add_argument('--extend', action='store_true', help='Skip unsetting previous environment variables to extend\
+ context')
     return parser.parse_known_args(args=args)[0]
 
 
