@@ -78,8 +78,12 @@ def prepare_arguments(parser):
         ' longer enabled or in the source space. This might require'
         ' --force-cmake on the next build.')
 
+    add('--no-deps', action='store_true', default=False,
+        help='Don\'t clean the packages which depend on the packages to be cleaned.')
+
     add('packages', metavar='PKGNAME', nargs='*',
-        help='Workspace packages to clean.')
+        help='Workspace packages to clean. This will clean the given packages'
+        ' and the packages which depend on them.')
 
     return parser
 
@@ -143,6 +147,9 @@ def main(opts):
             opts.packages, ctx)
 
         packages_to_be_cleaned.extend(orphaned_packages)
+
+        if not opts.no_deps:
+            packages_to_be_cleaned.extend(packages_to_be_cleaned_dependants)
 
         clean_packages(ctx, packages_to_be_cleaned, opts.build, opts.devel, opts.install)
     else:

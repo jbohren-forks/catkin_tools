@@ -91,7 +91,7 @@ def determine_packages_to_be_cleaned(packages, context):
                 if rdep.name in workspace_package_names:
                     packages.append(rdep.name)
     # Limit the packages to be cleaned to just the provided packages
-    for pkg_path, package in reversed(ordered_packages):
+    for pkg_path, package in ordered_packages:
         if package.name in packages:
             packages_to_be_cleaned.append((pkg_path, package))
             # Get the packages that depend on the packages to be cleaned

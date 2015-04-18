@@ -254,23 +254,18 @@ def get_recursive_build_dependants_in_workspace(package, ordered_packages):
     :rtype: list(tuple(package path, :py:class:`catkin_pkg.package.Package`))
     """
     workspace_packages_by_name = dict([(pkg.name, (pth, pkg)) for pth, pkg in ordered_packages])
-    packages_to_check = set([package])
-    recursive_dependants_names = set()
+    packages_to_check = set([package.name])
+    recursive_dependants = list()
 
-    for pth, pkg in ordered_packages:
-        # Skip if this is one to check
-        if pkg.name in packages_to_check:
-            continue
-        # Get deps for this package
-        deps = set(pkg.build_depends + pkg.buildtool_depends)
-        # Check if this package depends on any of the packages to check
-        if not packages_to_check.isdisjoint(deps):
-            # Add this to the dependants list
-            recursive_dependants_names.add(pkg.name)
-            # Make this a package to check
-            packages_to_check.add(pkg.name)
+    for pth, pkg in reversed(ordered_packages):
+        # Break if this is one to check
+        if pkg.name == package.name:
+            break
 
-    recursive_dependants = [workspace_packages_by_name[name] for name in recursive_dependants_names]
+        # Check if this package depends on the target package
+        deps = get_recursive_build_depends_in_workspace(pkg, ordered_packages)
+        if package.name in [p.name for _,p in deps]:
+            recursive_dependants.insert(0,(pth, pkg))
 
     return recursive_dependants
 
