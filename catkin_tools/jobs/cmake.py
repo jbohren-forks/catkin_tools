@@ -44,7 +44,6 @@ except NameError:
         pass
 
 
-INSTALLWATCH_EXEC = which('installwatch')
 INSTALL_MANIFEST_FILE = 'install_manifest.txt'
 
 

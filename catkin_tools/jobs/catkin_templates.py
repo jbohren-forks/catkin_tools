@@ -415,7 +415,7 @@ if __name__ == '__main__':
             lines += rollback_env_variables(environ, ENV_VAR_SUBFOLDERS)
         lines += prepend_env_variables(environ, ENV_VAR_SUBFOLDERS, CMAKE_PREFIX_PATH)
         lines += find_env_hooks(environ, CMAKE_PREFIX_PATH)
-        print('\n'.join(lines))
+        print('\\n'.join(lines))
 
         # need to explicitly flush the output
         sys.stdout.flush()

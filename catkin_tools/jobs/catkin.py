@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import csv
+import errno
 import glob
 import os
 import stat
@@ -39,9 +40,13 @@ from .job import Job
 
 from .catkin_templates import *
 
+CATKIN_TOOLS_DIRNAME = '.catkin_tools'
 DEVEL_MANIFEST_FILENAME = 'devel_manifest.txt'
+DEVEL_COLLISIONS_FILENAME = 'devel_collisions.txt'
 DOT_CATKIN_FILENAME = '.catkin'
+LINKED_DEVEL_DIRNAME = 'linked_devel'
 
+# List of files which shouldn't be copied
 devel_product_blacklist = [
     DOT_CATKIN_FILENAME,
     DOT_ROSINSTALL_FILNAME,
@@ -51,12 +56,67 @@ devel_product_blacklist = [
     SETUP_SH_FILENAME,
     SETUP_UTIL_PY_FILENAME]
 
-CATKIN_TOOLS_COLLISIONS_FILENAME = '.catkin_tools_collisions'
-
 # Synchronize access to the .catkin file
 dot_catkin_file_lock = threading.Lock()
 dest_collisions_file_lock = threading.Lock()
 
+
+def mkdir_p(path):
+    """Equivalent to UNIX mkdir -p"""
+    try:
+        return os.makedirs(path)
+    except OSError as exc: # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
+
+
+# Path helpers
+
+def get_devel_manifest_path(devel_space_abs, package_name, mkdirs=False):
+    """Get the path to the devel manifest for this package."""
+
+    devel_manifest_dir = os.path.join(
+        devel_space_abs,
+        CATKIN_TOOLS_DIRNAME,
+        package_name)
+
+    if mkdirs:
+        mkdir_p(devel_manifest_dir)
+
+    return os.path.join(devel_manifest_dir, DEVEL_MANIFEST_FILENAME)
+
+
+def get_linked_devel_path(devel_space_abs, package_name, mkdirs=False):
+    """Get the path to the linked devel space for this package."""
+
+    linked_devel_space_dir = os.path.join(
+        devel_space_abs,
+        CATKIN_TOOLS_DIRNAME,
+        package_name,
+        LINKED_DEVEL_DIRNAME)
+
+    if mkdirs:
+        mkdir_p(linked_devel_space_dir)
+
+    return linked_devel_space_dir
+
+
+def get_devel_collision_path(devel_space_abs, mkdirs=False):
+    """Get the path to the devel collisoin file."""
+
+    devel_catkin_tools_dir = os.path.join(
+        devel_space_abs,
+        CATKIN_TOOLS_DIRNAME)
+
+    if mkdirs:
+        mkdir_p(devel_catkin_tools_dir)
+
+    return os.path.join(devel_catkin_tools_dir, DEVEL_COLLISIONS_FILENAME)
+
+
+# .catkin file manipulation
 
 def append_dot_catkin_file(devel_space_abs, package_source_abs):
     """
@@ -81,7 +141,7 @@ def append_dot_catkin_file(devel_space_abs, package_source_abs):
     return 0
 
 
-def clear_dot_catkin_file(devel_space_abs, package_source_abs):
+def clean_dot_catkin_file(devel_space_abs, package_source_abs):
     """
     Remove a package source path from the .catkin file in the merged devel space
     """
@@ -98,6 +158,8 @@ def clear_dot_catkin_file(devel_space_abs, package_source_abs):
     return 0
 
 
+# file generation
+
 def generate_setup_files(devel_space_abs):
     """
     Generate catkin setup files if they don't exist.
@@ -110,6 +172,7 @@ def generate_setup_files(devel_space_abs):
     setup_bash_file_path = os.path.join(devel_space_abs, SETUP_BASH_FILENAME)
     setup_sh_file_path = os.path.join(devel_space_abs, SETUP_SH_FILENAME)
     setup_zsh_file_path = os.path.join(devel_space_abs, SETUP_ZSH_FILENAME)
+    setup_util_py_file_path = os.path.join(devel_space_abs, SETUP_UTIL_PY_FILENAME)
 
     if not os.path.exists(dot_rosinstall_file_path):
         with open(dot_rosinstall_file_path, 'wb') as dot_rosinstall_file:
@@ -122,6 +185,8 @@ def generate_setup_files(devel_space_abs):
             env_sh_file.write(
                 ENV_SH_FILE_TEMPLATE.replace(
                     '@SETUP_FILENAME@', SETUP_SH_FILENAME_STEM))
+        st = os.stat(env_sh_file_path)
+        os.chmod(env_sh_file_path, st.st_mode | stat.S_IEXEC)
 
     if not os.path.exists(setup_bash_file_path):
         with open(setup_bash_file_path, 'wb') as setup_bash_file:
@@ -137,59 +202,39 @@ def generate_setup_files(devel_space_abs):
         with open(setup_zsh_file_path, 'wb') as setup_zsh_file:
             setup_zsh_file.write(SETUP_ZSH_FILE_TEMPLATE)
 
-    return 0
+    if not os.path.exists(setup_util_py_file_path):
+        with open(setup_util_py_file_path, 'wb') as setup_util_py_file:
+            setup_util_py_file.write(SETUP_UTIL_PY_TEMPLATE)
+        st = os.stat(setup_util_py_file_path)
+        os.chmod(setup_util_py_file_path, st.st_mode | stat.S_IEXEC)
 
-
-def unlink_devel_products(build_space_abs, dest_devel):
-    """
-    Remove all files from the `products` dest list, as well as any empty
-    directories containing those files.
-    """
-
-    # List of files to clean
-    files_to_clean = []
-
-    # Read in devel_manifest.txt
-    devel_manifest_path = os.path.join(build_space_abs, DEVEL_MANIFEST_FILENAME)
-    with open(devel_manifest_path, 'rb') as devel_manifest:
-        manifest_reader = csv.reader(devel_manifest, delimiter=' ', quotechar='"')
-
-        # Remove all listed symlinks and empty directories
-        for source_file, dest_file in manifest_reader:
-            if not os.path.exists(dest_file):
-                print("WARNING: Dest file doesn't exist, so it can't be removed: " + dest_file)
-            elif not os.path.islink(dest_file):
-                print("ERROR: Dest file isn't a symbolic link: " + dest_file)
-                return -1
-            elif False and os.path.realpath(dest_file) != source_file:
-                print("ERROR: Dest file isn't a symbolic link to the expected file: " + dest_file)
-                return -1
-            else:
-                # Clean the file or decrement the collision count
-                files_to_clean.append(dest_file)
-
-    # Remove all listed symlinks and empty directories which have been removed
-    # after this build, and update the collision file
-    clean_files(dest_devel, [], files_to_clean)
 
     return 0
 
 
-def clean_files(dest_devel, files_that_collide, files_to_clean):
+# symlink management
+
+def clean_linked_files(devel_space_abs, files_that_collide, files_to_clean):
     """
     Removes a list of files or decrements collison counts for colliding files.
 
+    :param devel_space_abs: absolute path to merged devel space
+    :param files_that_collide: list of absolute paths to files that collide
+    :param files_to_clean: list of absolute paths to files to clean
+
     Synchronized.
     """
+
+    # Get paths
+    devel_collisions_file_path = get_devel_collision_path(devel_space_abs, mkdirs=True)
 
     with dest_collisions_file_lock:
         # Map from dest files to number of collisions
         dest_collisions = dict()
 
         # Load destination collisions file
-        collisions_file_path = os.path.join(dest_devel, CATKIN_TOOLS_COLLISIONS_FILENAME)
-        if os.path.exists(collisions_file_path):
-            with open(collisions_file_path, 'rb') as collisions_file:
+        if os.path.exists(devel_collisions_file_path):
+            with open(devel_collisions_file_path, 'rb') as collisions_file:
                 collisions_reader = csv.reader(collisions_file, delimiter=' ', quotechar='"')
                 dest_collisions = dict([(path, int(count)) for path, count in collisions_reader])
 
@@ -225,17 +270,63 @@ def clean_files(dest_devel, files_that_collide, files_to_clean):
                 del dest_collisions[dest_file]
 
         # Load destination collisions file
-        collisions_file_path = os.path.join(dest_devel, CATKIN_TOOLS_COLLISIONS_FILENAME)
-        with open(collisions_file_path, 'wb') as collisions_file:
+        with open(devel_collisions_file_path, 'wb') as collisions_file:
             collisions_writer = csv.writer(collisions_file, delimiter=' ', quotechar='"')
             for dest_file, count in dest_collisions.items():
                 collisions_writer.writerow([dest_file, count])
 
 
-def link_devel_products(build_space_abs, source_devel, dest_devel):
+def unlink_devel_products(devel_space_abs, package_name):
+    """
+    Remove all files listed in the devel manifest for the given package, as
+    well as any empty directories containing those files.
+    """
+
+    # Get paths
+    linked_devel_path = get_linked_devel_path(devel_space_abs, package_name, mkdirs=False)
+    devel_manifest_path = get_devel_manifest_path(devel_space_abs, package_name, mkdirs=False)
+
+    if not os.path.exists(linked_devel_path) or not os.path.exists(devel_manifest_path):
+        return 0
+
+    # List of files to clean
+    files_to_clean = []
+
+    # Read in devel_manifest.txt
+    with open(devel_manifest_path, 'rb') as devel_manifest:
+        devel_manifest.readline()
+        manifest_reader = csv.reader(devel_manifest, delimiter=' ', quotechar='"')
+
+        # Remove all listed symlinks and empty directories
+        for source_file, dest_file in manifest_reader:
+            if not os.path.exists(dest_file):
+                print("WARNING: Dest file doesn't exist, so it can't be removed: " + dest_file)
+            elif not os.path.islink(dest_file):
+                print("ERROR: Dest file isn't a symbolic link: " + dest_file)
+                return -1
+            elif False and os.path.realpath(dest_file) != source_file:
+                print("ERROR: Dest file isn't a symbolic link to the expected file: " + dest_file)
+                return -1
+            else:
+                # Clean the file or decrement the collision count
+                files_to_clean.append(dest_file)
+
+    # Remove all listed symlinks and empty directories which have been removed
+    # after this build, and update the collision file
+    clean_linked_files(devel_space_abs, [], files_to_clean)
+
+    return 0
+
+
+def link_devel_products(devel_space_abs, package_source_abs, package_name):
     """
     Create directories and symlinks to files
     """
+
+    # Get paths
+    source_devel = get_linked_devel_path(devel_space_abs, package_name, mkdirs=True)
+    devel_manifest_path = get_devel_manifest_path(devel_space_abs, package_name, mkdirs=True)
+    dest_devel = devel_space_abs
 
     # Pair of source/dest files or directories
     products = list()
@@ -286,13 +377,13 @@ def link_devel_products(build_space_abs, source_devel, dest_devel):
                 print('Symlinking from %s to %s' % (source_file, dest_file))
                 os.symlink(source_file, dest_file)
 
-    devel_manifest_path = os.path.join(build_space_abs, DEVEL_MANIFEST_FILENAME)
-
     # Load the old list of symlinked files for this package
     if os.path.exists(devel_manifest_path):
         with open(devel_manifest_path, 'rb') as devel_manifest:
             manifest_reader = csv.reader(devel_manifest, delimiter=' ', quotechar='"')
-
+            # Skip the package source directory
+            devel_manifest.readline()
+            # Read the previously-generated products
             for source_file, dest_file in manifest_reader:
                 print('Checking (%s, %s)' % (source_file, dest_file))
                 if (source_file, dest_file) not in products:
@@ -302,16 +393,21 @@ def link_devel_products(build_space_abs, source_devel, dest_devel):
 
     # Remove all listed symlinks and empty directories which have been removed
     # after this build, and update the collision file
-    clean_files(dest_devel, files_that_collide, files_to_clean)
+    clean_linked_files(devel_space_abs, files_that_collide, files_to_clean)
 
     # Save the list of symlinked files
     with open(devel_manifest_path, 'wb') as devel_manifest:
+        # Write the path to the package source directory
+        devel_manifest.write('%s\n' % package_source_abs)
+        # Write all the products
         manifest_writer = csv.writer(devel_manifest, delimiter=' ', quotechar='"')
         for source_file, dest_file in products:
             manifest_writer.writerow([source_file, dest_file])
 
     return 0
 
+
+# jobs
 
 class CatkinBuildJob(Job):
 
@@ -330,7 +426,7 @@ class CatkinBuildJob(Job):
         if self.context.isolate_devel:
             devel_space = os.path.join(self.context.devel_space_abs, self.package.name)
         elif self.context.link_devel:
-            devel_space = os.path.join(build_space, 'devel')
+            devel_space = get_linked_devel_path(self.context.devel_space_abs, self.package.name, mkdirs=True)
         else:
             devel_space = self.context.devel_space_abs
         # Install space path
@@ -370,17 +466,17 @@ class CatkinBuildJob(Job):
                     append_dot_catkin_file,
                     {'devel_space_abs': self.context.devel_space_abs,
                      'package_source_abs': os.path.join(self.context.source_space_abs, self.package_path)},
-                    build_space),
+                    self.context.devel_space_abs),
                 PythonCommand(
                     generate_setup_files,
                     {'devel_space_abs': self.context.devel_space_abs},
-                    build_space),
+                    self.context.devel_space_abs),
                 PythonCommand(
                     link_devel_products,
-                    {'build_space_abs': os.path.join(self.context.build_space_abs, self.package.name),
-                     'source_devel': devel_space,
-                     'dest_devel': self.context.devel_space_abs},
-                    build_space),
+                    {'devel_space_abs': self.context.devel_space_abs,
+                     'package_source_abs': os.path.join(self.context.source_space_abs, self.package_path),
+                     'package_name': self.package.name},
+                    self.context.devel_space_abs),
             ])
 
         # Make install command, if installing
@@ -401,6 +497,7 @@ class CatkinCleanJob(Job):
         commands = []
         # Setup build variables
         pkg_dir = os.path.join(self.context.source_space_abs, self.package_path)
+
         # Check if the build space exists
         build_space = os.path.join(self.context.build_space_abs, self.package.name)
         if not os.path.exists(build_space):
@@ -429,14 +526,14 @@ class CatkinCleanJob(Job):
             commands.extend([
                 PythonCommand(
                     unlink_devel_products,
-                    {'build_space_abs': os.path.join(self.context.build_space_abs, self.package.name),
-                     'dest_devel': self.context.devel_space_abs},
-                    build_space),
+                    {'devel_space_abs': self.context.devel_space_abs,
+                     'package_name': self.package.name},
+                    self.context.devel_space_abs),
                 PythonCommand(
-                    clear_dot_catkin_file,
+                    clean_dot_catkin_file,
                     {'devel_space_abs': self.context.devel_space_abs,
                      'package_source_abs': os.path.join(self.context.source_space_abs, self.package_path)},
-                    build_space),
+                    self.context.devel_space_abs),
             ])
 
         return commands
