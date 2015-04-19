@@ -133,9 +133,9 @@ def build_job_factory(context, path, package, force_cmake):
     job = None
     build_type = get_build_type(package)
     if build_type == 'catkin':
-        job = CatkinBuildJob(package, path, context, force_cmake)
+        job = CatkinBuildJob(context, package, path, force_cmake)
     elif build_type == 'cmake':
-        job = CMakeBuildJob(package, path, context, force_cmake)
+        job = CMakeBuildJob(context, package, path, force_cmake)
     return job
 
 

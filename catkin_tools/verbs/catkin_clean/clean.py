@@ -96,7 +96,7 @@ def determine_packages_to_be_cleaned(packages, context):
         if package.name in packages:
             packages_to_be_cleaned.append((pkg_path, package))
             # Get the packages that depend on the packages to be cleaned
-            pkg_deps = get_recursive_build_dependants_in_workspace(package, ordered_packages)
+            pkg_deps = get_recursive_build_dependants_in_workspace(package.name, ordered_packages)
             packages_to_be_cleaned_deps.extend(pkg_deps)
 
     return packages_to_be_cleaned, packages_to_be_cleaned_deps, ordered_packages
@@ -106,9 +106,9 @@ def clean_job_factory(context, path, package, force_cmake):
     job = None
     build_type = get_build_type(package)
     if build_type == 'catkin':
-        job = CatkinCleanJob(package, path, context, force_cmake)
+        job = CatkinCleanJob(context, package.name)
     elif build_type == 'cmake':
-        job = CMakeCleanJob(package, path, context, force_cmake)
+        job = CMakeCleanJob(context, package.name)
     return job
 
 

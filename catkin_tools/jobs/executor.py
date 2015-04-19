@@ -105,10 +105,10 @@ class Executor(Thread):
         self.should_shutdown = False
 
     def job_started(self, job):
-        self.queue.put(ExecutorEvent(self.executor_id, 'job_started', {}, job.package.name))
+        self.queue.put(ExecutorEvent(self.executor_id, 'job_started', {}, job.package_name))
 
     def command_started(self, cmd, location):
-        package_name = '' if self.current_job is None else self.current_job.package.name
+        package_name = '' if self.current_job is None else self.current_job.package_name
         data = {
             'cmd': cmd,
             'location': location
@@ -116,12 +116,12 @@ class Executor(Thread):
         self.queue.put(ExecutorEvent(self.executor_id, 'command_started', data, package_name))
 
     def command_log(self, msg):
-        package_name = '' if self.current_job is None else self.current_job.package.name
+        package_name = '' if self.current_job is None else self.current_job.package_name
         data = {'message': msg}
         self.queue.put(ExecutorEvent(self.executor_id, 'command_log', data, package_name))
 
     def command_failed(self, cmd, location, retcode):
-        package_name = '' if self.current_job is None else self.current_job.package.name
+        package_name = '' if self.current_job is None else self.current_job.package_name
         data = {
             'cmd': cmd,
             'location': location,
@@ -130,7 +130,7 @@ class Executor(Thread):
         self.queue.put(ExecutorEvent(self.executor_id, 'command_failed', data, package_name))
 
     def command_finished(self, cmd, location, retcode):
-        package_name = '' if self.current_job is None else self.current_job.package.name
+        package_name = '' if self.current_job is None else self.current_job.package_name
         data = {
             'cmd': cmd,
             'location': location,
@@ -139,13 +139,13 @@ class Executor(Thread):
         self.queue.put(ExecutorEvent(self.executor_id, 'command_finished', data, package_name))
 
     def job_finished(self, job):
-        self.queue.put(ExecutorEvent(self.executor_id, 'job_finished', {}, job.package.name))
+        self.queue.put(ExecutorEvent(self.executor_id, 'job_finished', {}, job.package_name))
 
     def job_failed(self, job):
-        self.queue.put(ExecutorEvent(self.executor_id, 'job_failed', {}, job.package.name))
+        self.queue.put(ExecutorEvent(self.executor_id, 'job_failed', {}, job.package_name))
 
     def quit(self, exc=None):
-        package_name = '' if self.current_job is None else self.current_job.package.name
+        package_name = '' if self.current_job is None else self.current_job.package_name
         data = {
             'reason': 'normal' if exc is None else 'exception',
             'exc': str(exc)

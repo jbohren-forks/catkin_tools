@@ -119,6 +119,7 @@ def main(opts):
         opts.build = opts.devel = opts.install = True
 
     # Orphan removal
+    orphans = []
     if opts.orphans:
         if os.path.exists(ctx.build_space_abs):
             # TODO: Check for merged build and report error
@@ -130,7 +131,6 @@ def main(opts):
 
             # Iterate over all packages with build dirs
             print("[clean] Removing orphaned build directories from %s" % ctx.build_space_abs)
-            orphans = []
             for pkg_build_name in os.listdir(ctx.build_space_abs):
                 if pkg_build_name not in exempt_build_files:
                     pkg_build_path = os.path.join(ctx.build_space_abs, pkg_build_name)
@@ -153,10 +153,12 @@ def main(opts):
     if len(opts.packages) > 0:
 
         packages_to_be_cleaned, packages_to_be_cleaned_dependants, ordered_packages = determine_packages_to_be_cleaned(
-            opts.packages, ctx)
+            opts.packages + orphans, ctx)
 
         if not opts.no_deps:
             packages_to_be_cleaned.extend(packages_to_be_cleaned_dependants)
+
+        package_names_to_be_cleaned = [pkg.name for _,pkg in packages_to_be_cleaned]
 
         clean_packages(ctx, packages_to_be_cleaned, opts.build, opts.devel, opts.install)
     else:

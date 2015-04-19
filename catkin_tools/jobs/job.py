@@ -155,13 +155,10 @@ def get_build_type(package):
 
 class Job(object):
 
-    """Encapsulates a job which builds a package"""
+    """Encapsulates a job which executes a series of commands"""
 
-    def __init__(self, package, package_path, context, force_cmake):
-        self.package = package
-        self.package_path = package_path
+    def __init__(self, context):
         self.context = context
-        self.force_cmake = force_cmake
         self.commands = []
         self.__command_index = 0
 
@@ -179,3 +176,24 @@ class Job(object):
             raise StopIteration()
         self.__command_index += 1
         return self.commands[self.__command_index - 1]
+
+
+class BuildJob(Job):
+
+    """Encapsulates a job which builds a package"""
+
+    def __init__(self, context,  package, package_path, force_cmake):
+        super(BuildJob, self).__init__(context)
+        self.package = package
+        self.package_name = package.name
+        self.package_path = package_path
+        self.force_cmake = force_cmake
+
+
+class CleanJob(Job):
+
+    """Encapsulates a job which cleans a package"""
+
+    def __init__(self, context, package_name):
+        super(CleanJob, self).__init__(context)
+        self.package_name = package_name

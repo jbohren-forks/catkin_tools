@@ -34,7 +34,8 @@ from .commands.make import MAKE_EXEC
 
 from .job import create_build_space
 from .job import create_env_file
-from .job import Job
+from .job import BuildJob
+from .job import CleanJob
 
 # FileNotFoundError from Python3
 try:
@@ -68,12 +69,12 @@ def get_python_install_dir():
     return python_install_dir
 
 
-class CMakeBuildJob(Job):
+class CMakeBuildJob(BuildJob):
 
     """Job class for building plain cmake packages"""
 
-    def __init__(self, package, package_path, context, force_cmake):
-        Job.__init__(self, package, package_path, context, force_cmake)
+    def __init__(self, context, package, package_path, force_cmake):
+        super(CMakeBuildJob, self).__init__(context, package, package_path, force_cmake)
         self.commands = self.get_commands()
 
     def get_multiarch(self):
@@ -205,19 +206,18 @@ export PYTHONPATH="{pythonpath}$PYTHONPATH"
         return commands
 
 
-class CMakeCleanJob(Job):
+class CMakeCleanJob(CleanJob):
 
     """Job class for cleaning plain cmake packages"""
 
-    def __init__(self, package, package_path, context, force_cmake):
-        Job.__init__(self, package, package_path, context, force_cmake)
+    def __init__(self, context, package_name):
+        super(CMakeCleanJob, self).__init__(context, package_name)
         self.commands = self.get_commands()
 
     def get_commands(self):
         commands = []
         # Setup build variables
-        pkg_dir = os.path.join(self.context.source_space_abs, self.package_path)
-        build_space = create_build_space(self.context.build_space_abs, self.package.name)
+        build_space = create_build_space(self.context.build_space_abs, self.package_name)
 
         # Read install manifest
         install_manifest_path = os.path.join(build_space, INSTALL_MANIFEST_FILE)

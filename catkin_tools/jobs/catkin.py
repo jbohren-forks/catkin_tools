@@ -36,7 +36,8 @@ from .commands.python_command import PythonCommand
 
 from .job import create_build_space
 from .job import create_env_file
-from .job import Job
+from .job import BuildJob
+from .job import CleanJob
 
 from .catkin_templates import *
 
@@ -141,10 +142,22 @@ def append_dot_catkin_file(devel_space_abs, package_source_abs):
     return 0
 
 
-def clean_dot_catkin_file(devel_space_abs, package_source_abs):
+def clean_dot_catkin_file(devel_space_abs, package_name):
     """
     Remove a package source path from the .catkin file in the merged devel space
     """
+
+    # Get the path to the package source directory
+    linked_devel_path = get_linked_devel_path(devel_space_abs, package_name, mkdirs=False)
+    devel_manifest_path = get_devel_manifest_path(devel_space_abs, package_name, mkdirs=False)
+
+    if not os.path.exists(linked_devel_path) or not os.path.exists(devel_manifest_path):
+        return 0
+
+    with open(devel_manifest_path, 'rb') as devel_manifest:
+        package_source_abs = devel_manifest.readline().strip()
+
+    # Remove the package source directory from the .catkin file
     with dot_catkin_file_lock:
         dot_catkin_filename_abs = os.path.join(devel_space_abs, DOT_CATKIN_FILENAME)
         if os.path.exists(dot_catkin_filename_abs):
@@ -160,7 +173,7 @@ def clean_dot_catkin_file(devel_space_abs, package_source_abs):
 
 # file generation
 
-def generate_setup_files(devel_space_abs):
+def generate_setup_files(context, devel_space_abs):
     """
     Generate catkin setup files if they don't exist.
 
@@ -204,7 +217,9 @@ def generate_setup_files(devel_space_abs):
 
     if not os.path.exists(setup_util_py_file_path):
         with open(setup_util_py_file_path, 'wb') as setup_util_py_file:
-            setup_util_py_file.write(SETUP_UTIL_PY_TEMPLATE)
+            setup_util_py_file.write(
+                SETUP_UTIL_PY_TEMPLATE.replace(
+                    '@CMAKE_PREFIX_PATH_AS_IS@', ';'.join([context.devel_space_abs,context.cmake_prefix_path])))
         st = os.stat(setup_util_py_file_path)
         os.chmod(setup_util_py_file_path, st.st_mode | stat.S_IEXEC)
 
@@ -374,7 +389,7 @@ def link_devel_products(devel_space_abs, package_source_abs, package_name):
                     files_that_collide.append(dest_file)
             else:
                 # Create the symlink
-                print('Symlinking from %s to %s' % (source_file, dest_file))
+                print('Symlinking %s' % (dest_file))
                 os.symlink(source_file, dest_file)
 
     # Load the old list of symlinked files for this package
@@ -385,7 +400,7 @@ def link_devel_products(devel_space_abs, package_source_abs, package_name):
             devel_manifest.readline()
             # Read the previously-generated products
             for source_file, dest_file in manifest_reader:
-                print('Checking (%s, %s)' % (source_file, dest_file))
+                #print('Checking (%s, %s)' % (source_file, dest_file))
                 if (source_file, dest_file) not in products:
                     # Clean the file or decrement the collision count
                     print('Cleaning (%s, %s)' % (source_file, dest_file))
@@ -409,12 +424,12 @@ def link_devel_products(devel_space_abs, package_source_abs, package_name):
 
 # jobs
 
-class CatkinBuildJob(Job):
+class CatkinBuildJob(BuildJob):
 
     """Job class for building catkin packages"""
 
-    def __init__(self, package, package_path, context, force_cmake):
-        Job.__init__(self, package, package_path, context, force_cmake)
+    def __init__(self, context, package, package_path, force_cmake):
+        super(CatkinBuildJob, self).__init__(context, package, package_path, force_cmake)
         self.commands = self.get_commands()
 
     def get_commands(self):
@@ -469,7 +484,8 @@ class CatkinBuildJob(Job):
                     self.context.devel_space_abs),
                 PythonCommand(
                     generate_setup_files,
-                    {'devel_space_abs': self.context.devel_space_abs},
+                    {'context': self.context,
+                     'devel_space_abs': self.context.devel_space_abs},
                     self.context.devel_space_abs),
                 PythonCommand(
                     link_devel_products,
@@ -485,27 +501,25 @@ class CatkinBuildJob(Job):
         return commands
 
 
-class CatkinCleanJob(Job):
+class CatkinCleanJob(CleanJob):
 
     """Job class for building catkin packages"""
 
-    def __init__(self, package, package_path, context, force_cmake):
-        Job.__init__(self, package, package_path, context, force_cmake)
+    def __init__(self, context, package_name):
+        super(CatkinCleanJob, self).__init__(context, package_name)
         self.commands = self.get_commands()
 
     def get_commands(self):
         commands = []
-        # Setup build variables
-        pkg_dir = os.path.join(self.context.source_space_abs, self.package_path)
 
         # Check if the build space exists
-        build_space = os.path.join(self.context.build_space_abs, self.package.name)
+        build_space = os.path.join(self.context.build_space_abs, self.package_name)
         if not os.path.exists(build_space):
             return commands
 
         # For isolated devel space, remove it entirely
         if self.context.isolate_devel:
-            devel_space = os.path.join(self.context.devel_space_abs, self.package.name)
+            devel_space = os.path.join(self.context.devel_space_abs, self.package_name)
             commands.append(CMakeCommand(None, [CMAKE_EXEC, '-E', 'remove_directory', devel_space], build_space))
             return commands
         elif self.context.link_devel:
@@ -515,7 +529,7 @@ class CatkinCleanJob(Job):
 
         # For isolated install space, remove it entirely
         if self.context.isolate_install:
-            install_space = os.path.join(self.context.install_space_abs, self.package.name)
+            install_space = os.path.join(self.context.install_space_abs, self.package_name)
             commands.append(CMakeCommand(None, [CMAKE_EXEC, '-E', 'remove_directory', install_space], build_space))
             return commands
         else:
@@ -525,14 +539,14 @@ class CatkinCleanJob(Job):
         if self.context.link_devel:
             commands.extend([
                 PythonCommand(
-                    unlink_devel_products,
-                    {'devel_space_abs': self.context.devel_space_abs,
-                     'package_name': self.package.name},
-                    self.context.devel_space_abs),
-                PythonCommand(
                     clean_dot_catkin_file,
                     {'devel_space_abs': self.context.devel_space_abs,
-                     'package_source_abs': os.path.join(self.context.source_space_abs, self.package_path)},
+                     'package_name': self.package_name},
+                    self.context.devel_space_abs),
+                PythonCommand(
+                    unlink_devel_products,
+                    {'devel_space_abs': self.context.devel_space_abs,
+                     'package_name': self.package_name},
                     self.context.devel_space_abs),
             ])
 
