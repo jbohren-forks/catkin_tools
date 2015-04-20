@@ -117,6 +117,20 @@ def get_devel_collision_path(devel_space_abs, mkdirs=False):
     return os.path.join(devel_catkin_tools_dir, DEVEL_COLLISIONS_FILENAME)
 
 
+def get_bootstrap_path(devel_space_abs, mkdirs=False):
+    """Get the path to the bootstrap directory."""
+
+    bootstrap_dir = os.path.join(
+        devel_space_abs,
+        CATKIN_TOOLS_DIRNAME,
+        'bootstrap')
+
+    if mkdirs:
+        mkdir_p(bootstrap_dir)
+
+    return bootstrap_dir
+
+
 # .catkin file manipulation
 
 def append_dot_catkin_file(devel_space_abs, package_source_abs):
@@ -172,6 +186,39 @@ def clean_dot_catkin_file(devel_space_abs, package_name):
 
 
 # file generation
+
+SETUP_BOOTSTRAP_CMAKELISTS_TEMPLATE="""cmake_minimum_required(VERSION 2.8.3)
+project(catkin_tools_bootstrap)
+find_package(catkin REQUIRED)
+catkin_package()"""
+
+SETUP_BOOTSTRAP_PACKAGE_XML_TEMPLATE="""<package>
+  <name>catkin_tools_bootstrap</name>
+  <description>This is a bootstrap.</description>
+  <version>0.0.0</version>
+  <license>BSD</license>
+  <maintainer email="jbo@jhu.edu">jbohren</maintainer>
+  <buildtool_depend>catkin</buildtool_depend>
+</package>"""
+
+def generate_setup_bootstrap(build_space_abs, devel_space_abs):
+
+    bootstrap_path = get_bootstrap_path(devel_space_abs, mkdirs=True)
+
+    cmakelists_txt_path = os.path.join(bootstrap_path, 'CMakeLists.txt')
+    package_xml_path = os.path.join(bootstrap_path, 'package.xml')
+
+    if not os.path.exists(cmakelists_txt_path):
+        with open(cmakelists_txt_path, 'wb') as cmakelists_txt:
+            cmakelists_txt.write(SETUP_BOOTSTRAP_CMAKELISTS_TEMPLATE)
+
+    if not os.path.exists(package_xml_path):
+        with open(package_xml_path, 'wb') as package_xml:
+            package_xml.write(SETUP_BOOTSTRAP_PACKAGE_XML_TEMPLATE)
+
+    mkdir_p(os.path.join(build_space_abs, 'catkin_tools_bootstrap'))
+
+    return 0
 
 def generate_setup_files(context, devel_space_abs):
     """
@@ -483,16 +530,24 @@ class CatkinBuildJob(BuildJob):
                      'package_source_abs': os.path.join(self.context.source_space_abs, self.package_path)},
                     self.context.devel_space_abs),
                 PythonCommand(
-                    generate_setup_files,
-                    {'context': self.context,
-                     'devel_space_abs': self.context.devel_space_abs},
-                    self.context.devel_space_abs),
-                PythonCommand(
                     link_devel_products,
                     {'devel_space_abs': self.context.devel_space_abs,
                      'package_source_abs': os.path.join(self.context.source_space_abs, self.package_path),
                      'package_name': self.package.name},
                     self.context.devel_space_abs),
+                #PythonCommand(
+                    #generate_setup_bootstrap,
+                    #{'devel_space_abs': self.context.devel_space_abs},
+                    #self.context.devel_space_abs),
+                #CMakeCommand(
+                    #env_cmd,
+                    #[
+                        #CMAKE_EXEC,
+                        #get_bootstrap_path(self.context.devel_space_abs),
+                        #'-DCATKIN_DEVEL_PREFIX=' + self.context.devel_space_abs,
+                        #'-DCMAKE_INSTALL_PREFIX=' + install_space
+                    #] + self.context.cmake_args,
+                    #get_bootstrap_path(self.context.devel_space_abs))
             ])
 
         # Make install command, if installing
