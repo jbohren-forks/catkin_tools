@@ -296,7 +296,7 @@ def main(opts):
                 '-DCATKIN_DEVEL_PREFIX=' + ctx.devel_space_abs,
                 '-DCMAKE_INSTALL_PREFIX=' + ctx.install_space_abs
             ] + ctx.cmake_args,
-            os.path.join(ctx.build_space_abs,'catkin_tools_bootstrap'))
+            os.path.join(ctx.build_space_abs, 'catkin_tools_bootstrap'))
         for r in setup_bootstrap_cmd.run():
             if type(r) is int and r != 0:
                 sys.exit("Couldn't generate bootstrap setup files.")

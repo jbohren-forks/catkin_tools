@@ -66,7 +66,7 @@ def mkdir_p(path):
     """Equivalent to UNIX mkdir -p"""
     try:
         return os.makedirs(path)
-    except OSError as exc: # Python >2.5
+    except OSError as exc:  # Python >2.5
         if exc.errno == errno.EEXIST and os.path.isdir(path):
             pass
         else:
@@ -187,12 +187,12 @@ def clean_dot_catkin_file(devel_space_abs, package_name):
 
 # file generation
 
-SETUP_BOOTSTRAP_CMAKELISTS_TEMPLATE="""cmake_minimum_required(VERSION 2.8.3)
+SETUP_BOOTSTRAP_CMAKELISTS_TEMPLATE = """cmake_minimum_required(VERSION 2.8.3)
 project(catkin_tools_bootstrap)
 find_package(catkin REQUIRED)
 catkin_package()"""
 
-SETUP_BOOTSTRAP_PACKAGE_XML_TEMPLATE="""<package>
+SETUP_BOOTSTRAP_PACKAGE_XML_TEMPLATE = """<package>
   <name>catkin_tools_bootstrap</name>
   <description>This is a bootstrap.</description>
   <version>0.0.0</version>
@@ -200,6 +200,7 @@ SETUP_BOOTSTRAP_PACKAGE_XML_TEMPLATE="""<package>
   <maintainer email="jbo@jhu.edu">jbohren</maintainer>
   <buildtool_depend>catkin</buildtool_depend>
 </package>"""
+
 
 def generate_setup_bootstrap(build_space_abs, devel_space_abs):
 
@@ -219,6 +220,7 @@ def generate_setup_bootstrap(build_space_abs, devel_space_abs):
     mkdir_p(os.path.join(build_space_abs, 'catkin_tools_bootstrap'))
 
     return 0
+
 
 def generate_setup_files(context, devel_space_abs):
     """
@@ -266,10 +268,9 @@ def generate_setup_files(context, devel_space_abs):
         with open(setup_util_py_file_path, 'wb') as setup_util_py_file:
             setup_util_py_file.write(
                 SETUP_UTIL_PY_TEMPLATE.replace(
-                    '@CMAKE_PREFIX_PATH_AS_IS@', ';'.join([context.devel_space_abs,context.cmake_prefix_path])))
+                    '@CMAKE_PREFIX_PATH_AS_IS@', ';'.join([context.devel_space_abs, context.cmake_prefix_path])))
         st = os.stat(setup_util_py_file_path)
         os.chmod(setup_util_py_file_path, st.st_mode | stat.S_IEXEC)
-
 
     return 0
 
@@ -447,7 +448,7 @@ def link_devel_products(devel_space_abs, package_source_abs, package_name):
             devel_manifest.readline()
             # Read the previously-generated products
             for source_file, dest_file in manifest_reader:
-                #print('Checking (%s, %s)' % (source_file, dest_file))
+                # print('Checking (%s, %s)' % (source_file, dest_file))
                 if (source_file, dest_file) not in products:
                     # Clean the file or decrement the collision count
                     print('Cleaning (%s, %s)' % (source_file, dest_file))
@@ -535,19 +536,6 @@ class CatkinBuildJob(BuildJob):
                      'package_source_abs': os.path.join(self.context.source_space_abs, self.package_path),
                      'package_name': self.package.name},
                     self.context.devel_space_abs),
-                #PythonCommand(
-                    #generate_setup_bootstrap,
-                    #{'devel_space_abs': self.context.devel_space_abs},
-                    #self.context.devel_space_abs),
-                #CMakeCommand(
-                    #env_cmd,
-                    #[
-                        #CMAKE_EXEC,
-                        #get_bootstrap_path(self.context.devel_space_abs),
-                        #'-DCATKIN_DEVEL_PREFIX=' + self.context.devel_space_abs,
-                        #'-DCMAKE_INSTALL_PREFIX=' + install_space
-                    #] + self.context.cmake_args,
-                    #get_bootstrap_path(self.context.devel_space_abs))
             ])
 
         # Make install command, if installing

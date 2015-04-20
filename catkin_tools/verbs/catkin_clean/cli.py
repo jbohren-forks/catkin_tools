@@ -158,7 +158,7 @@ def main(opts):
         if not opts.no_deps:
             packages_to_be_cleaned.extend(packages_to_be_cleaned_dependants)
 
-        package_names_to_be_cleaned = [pkg.name for _,pkg in packages_to_be_cleaned]
+        package_names_to_be_cleaned = [pkg.name for _, pkg in packages_to_be_cleaned]
 
         clean_packages(ctx, packages_to_be_cleaned, opts.build, opts.devel, opts.install)
     else:

@@ -264,9 +264,9 @@ def get_recursive_build_dependants_in_workspace(package_name, ordered_packages):
 
         # Check if this package depends on the target package
         deps = get_recursive_build_depends_in_workspace(pkg, ordered_packages)
-        deps_names = [p.name for _,p in deps]
+        deps_names = [p.name for _, p in deps]
         if package_name in deps_names:
-            recursive_dependants.insert(0,(pth, pkg))
+            recursive_dependants.insert(0, (pth, pkg))
 
     return recursive_dependants
 

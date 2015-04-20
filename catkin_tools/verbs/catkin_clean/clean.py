@@ -113,11 +113,11 @@ def clean_job_factory(context, path, package, force_cmake):
 
 
 def clean_packages(
-    context,
-    packages_to_be_cleaned,
-    build=True,
-    devel=False,
-    install=False):
+        context,
+        packages_to_be_cleaned,
+        build=True,
+        devel=False,
+        install=False):
 
     # print(packages_to_be_cleaned)
 
