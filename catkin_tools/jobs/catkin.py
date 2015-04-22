@@ -48,12 +48,12 @@ LINKED_DEVEL_DIRNAME = 'linked_devel'
 # List of files which shouldn't be copied
 devel_product_blacklist = [
     DOT_CATKIN_FILENAME,
-    DOT_ROSINSTALL_FILNAME,
-    ENV_SH_FILENAME,
-    SETUP_BASH_FILENAME,
-    SETUP_ZSH_FILENAME,
-    SETUP_SH_FILENAME,
-    SETUP_UTIL_PY_FILENAME]
+    '.rosinstall',
+    'env.sh',
+    'setup.bash',
+    'setup.zsh',
+    'setup.sh',
+    '_setup_util.py']
 
 # Synchronize access to the .catkin file
 dot_catkin_file_lock = threading.Lock()
@@ -201,7 +201,7 @@ SETUP_BOOTSTRAP_PACKAGE_XML_TEMPLATE = """<package>
   </description>
   <version>0.0.0</version>
   <license>BSD</license>
-  <maintainer email="">jbohren</maintainer>
+  <maintainer email="jbo@jhu.edu">jbohren</maintainer>
   <buildtool_depend>catkin</buildtool_depend>
 </package>"""
 
@@ -234,7 +234,9 @@ def generate_setup_bootstrap(build_space_abs, devel_space_abs):
 
     return 0
 
+
 # symlink management
+
 
 def clean_linked_files(devel_space_abs, files_that_collide, files_to_clean):
     """Removes a list of files and adjusts collison counts for colliding files.
