@@ -39,8 +39,6 @@ from .job import create_env_file
 from .job import BuildJob
 from .job import CleanJob
 
-from .catkin_templates import *
-
 CATKIN_TOOLS_DIRNAME = '.catkin_tools'
 DEVEL_MANIFEST_FILENAME = 'devel_manifest.txt'
 DEVEL_COLLISIONS_FILENAME = 'devel_collisions.txt'
@@ -59,11 +57,15 @@ devel_product_blacklist = [
 
 # Synchronize access to the .catkin file
 dot_catkin_file_lock = threading.Lock()
+
+# Synchronize access to the devel collisions file
 dest_collisions_file_lock = threading.Lock()
 
 
 def mkdir_p(path):
     """Equivalent to UNIX mkdir -p"""
+    if os.path.exists(path):
+        return
     try:
         return os.makedirs(path)
     except OSError as exc:  # Python >2.5
@@ -185,7 +187,7 @@ def clean_dot_catkin_file(devel_space_abs, package_name):
     return 0
 
 
-# file generation
+# Bootstrap files
 
 SETUP_BOOTSTRAP_CMAKELISTS_TEMPLATE = """cmake_minimum_required(VERSION 2.8.3)
 project(catkin_tools_bootstrap)
@@ -194,98 +196,54 @@ catkin_package()"""
 
 SETUP_BOOTSTRAP_PACKAGE_XML_TEMPLATE = """<package>
   <name>catkin_tools_bootstrap</name>
-  <description>This is a bootstrap.</description>
+  <description>
+    This package is used to generate catkin setup files.
+  </description>
   <version>0.0.0</version>
   <license>BSD</license>
-  <maintainer email="jbo@jhu.edu">jbohren</maintainer>
+  <maintainer email="">jbohren</maintainer>
   <buildtool_depend>catkin</buildtool_depend>
 </package>"""
 
 
 def generate_setup_bootstrap(build_space_abs, devel_space_abs):
+    """This generates a minimal Catkin package used to generate Catkin
+    environment setup files in a merged devel space.
+
+    :param build_space_abs: The path to a merged build space
+    :param devel_space_abs: The path to a merged devel space
+    :returns: 0 on success
+    """
 
     bootstrap_path = get_bootstrap_path(devel_space_abs, mkdirs=True)
 
+    # Create CMakeLists.txt file
     cmakelists_txt_path = os.path.join(bootstrap_path, 'CMakeLists.txt')
-    package_xml_path = os.path.join(bootstrap_path, 'package.xml')
-
     if not os.path.exists(cmakelists_txt_path):
         with open(cmakelists_txt_path, 'wb') as cmakelists_txt:
             cmakelists_txt.write(SETUP_BOOTSTRAP_CMAKELISTS_TEMPLATE)
 
+    # Create package.xml file
+    package_xml_path = os.path.join(bootstrap_path, 'package.xml')
     if not os.path.exists(package_xml_path):
         with open(package_xml_path, 'wb') as package_xml:
             package_xml.write(SETUP_BOOTSTRAP_PACKAGE_XML_TEMPLATE)
 
+    # Create the build directory for this package
     mkdir_p(os.path.join(build_space_abs, 'catkin_tools_bootstrap'))
 
     return 0
 
-
-def generate_setup_files(context, devel_space_abs):
-    """
-    Generate catkin setup files if they don't exist.
-
-    This is normally done by catkin.
-    """
-
-    dot_rosinstall_file_path = os.path.join(devel_space_abs, DOT_ROSINSTALL_FILNAME)
-    env_sh_file_path = os.path.join(devel_space_abs, ENV_SH_FILENAME)
-    setup_bash_file_path = os.path.join(devel_space_abs, SETUP_BASH_FILENAME)
-    setup_sh_file_path = os.path.join(devel_space_abs, SETUP_SH_FILENAME)
-    setup_zsh_file_path = os.path.join(devel_space_abs, SETUP_ZSH_FILENAME)
-    setup_util_py_file_path = os.path.join(devel_space_abs, SETUP_UTIL_PY_FILENAME)
-
-    if not os.path.exists(dot_rosinstall_file_path):
-        with open(dot_rosinstall_file_path, 'wb') as dot_rosinstall_file:
-            dot_rosinstall_file.write(
-                DOT_ROSINSTALL_FILE_TEMPLATE.replace(
-                    '@SETUP_DIR@', devel_space_abs))
-
-    if not os.path.exists(env_sh_file_path):
-        with open(env_sh_file_path, 'wb') as env_sh_file:
-            env_sh_file.write(
-                ENV_SH_FILE_TEMPLATE.replace(
-                    '@SETUP_FILENAME@', SETUP_SH_FILENAME_STEM))
-        st = os.stat(env_sh_file_path)
-        os.chmod(env_sh_file_path, st.st_mode | stat.S_IEXEC)
-
-    if not os.path.exists(setup_bash_file_path):
-        with open(setup_bash_file_path, 'wb') as setup_bash_file:
-            setup_bash_file.write(SETUP_BASH_FILE_TEMPLATE)
-
-    if not os.path.exists(setup_sh_file_path):
-        with open(setup_sh_file_path, 'wb') as setup_sh_file:
-            setup_sh_file.write(
-                SETUP_SH_FILE_TEMPLATE.replace(
-                    '@SETUP_DIR@', devel_space_abs))
-
-    if not os.path.exists(setup_zsh_file_path):
-        with open(setup_zsh_file_path, 'wb') as setup_zsh_file:
-            setup_zsh_file.write(SETUP_ZSH_FILE_TEMPLATE)
-
-    if not os.path.exists(setup_util_py_file_path):
-        with open(setup_util_py_file_path, 'wb') as setup_util_py_file:
-            setup_util_py_file.write(
-                SETUP_UTIL_PY_TEMPLATE.replace(
-                    '@CMAKE_PREFIX_PATH_AS_IS@', ';'.join([context.devel_space_abs, context.cmake_prefix_path])))
-        st = os.stat(setup_util_py_file_path)
-        os.chmod(setup_util_py_file_path, st.st_mode | stat.S_IEXEC)
-
-    return 0
-
-
 # symlink management
 
 def clean_linked_files(devel_space_abs, files_that_collide, files_to_clean):
-    """
-    Removes a list of files or decrements collison counts for colliding files.
+    """Removes a list of files and adjusts collison counts for colliding files.
+
+    This function synchronizes access to the devel collisions file.
 
     :param devel_space_abs: absolute path to merged devel space
     :param files_that_collide: list of absolute paths to files that collide
     :param files_to_clean: list of absolute paths to files to clean
-
-    Synchronized.
     """
 
     # Get paths
@@ -343,6 +301,9 @@ def unlink_devel_products(devel_space_abs, package_name):
     """
     Remove all files listed in the devel manifest for the given package, as
     well as any empty directories containing those files.
+
+    :param devel_space_abs: Path to a merged devel space.
+    :param package_name: Name of the package whose files should be unlinked.
     """
 
     # Get paths
@@ -382,8 +343,14 @@ def unlink_devel_products(devel_space_abs, package_name):
 
 
 def link_devel_products(devel_space_abs, package_source_abs, package_name):
-    """
-    Create directories and symlinks to files
+    """Link files from an isolated devel space into a merged one.
+
+    This creates directories and symlinks in a merged devel space to a
+    package's linked devel space.
+
+    :param devel_space_abs: Path to a merged devel space
+    :param package_source_abs: The path to the package source directory
+    :param pacakge_name: The name of the package to link
     """
 
     # Get paths
@@ -546,7 +513,7 @@ class CatkinBuildJob(BuildJob):
 
 class CatkinCleanJob(CleanJob):
 
-    """Job class for building catkin packages"""
+    """Job class for cleaning catkin packages"""
 
     def __init__(self, context, package_name):
         super(CatkinCleanJob, self).__init__(context, package_name)
