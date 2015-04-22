@@ -20,90 +20,19 @@ import sys
 import tempfile
 
 from catkin_tools.argument_parsing import handle_make_arguments
+
 from catkin_tools.common import get_cached_recursive_build_depends_in_workspace
-from catkin_tools.utils import which
+
+from catkin_tools.jobs import CMakeCommand
+from catkin_tools.jobs import CMAKE_EXEC
+from catkin_tools.jobs import MakeCommand
+from catkin_tools.jobs import MAKE_EXEC
+
+from catkin_tools.runner import run_command
 
 from .common import create_build_space
 from .common import generate_env_file
 from .common import get_python_install_dir
-
-MAKE_EXEC = which('make')
-CMAKE_EXEC = which('cmake')
-
-
-class Command(object):
-
-    """Single command which is part of a job"""
-    lock_install_space = False
-    stage_name = ''
-
-    def __init__(self, env_loader, cmd, location):
-        self.cmd = [env_loader] + cmd
-        self.cmd_str = ' '.join(self.cmd)
-        self.executable = os.path.basename(cmd[0])
-        self.pretty = ' '.join([self.executable] + cmd[1:])
-        self.plain_cmd = cmd
-        self.plain_cmd_str = ' '.join(self.plain_cmd)
-        self.env_loader = env_loader
-        self.location = location
-
-
-class MakeCommand(Command):
-    stage_name = 'make'
-
-    def __init__(self, env_loader, cmd, location):
-        super(MakeCommand, self).__init__(env_loader, cmd, location)
-
-        if MAKE_EXEC is None:
-            raise RuntimeError("Executable 'make' could not be found in PATH.")
-
-
-class CMakeCommand(Command):
-    stage_name = 'cmake'
-
-    def __init__(self, env_loader, cmd, location):
-        super(CMakeCommand, self).__init__(env_loader, cmd, location)
-
-        if CMAKE_EXEC is None:
-            raise RuntimeError("Executable 'cmake' could not be found in PATH.")
-
-
-class InstallCommand(MakeCommand):
-
-    """Command which touches the install space"""
-    lock_install_space = True
-    stage_name = 'make install'
-
-    def __init__(self, env_loader, cmd, location):
-        super(InstallCommand, self).__init__(env_loader, cmd, location)
-
-
-class Job(object):
-
-    """Encapsulates a job which builds a package"""
-
-    def __init__(self, package, package_path, context, force_cmake):
-        self.package = package
-        self.package_path = package_path
-        self.context = context
-        self.force_cmake = force_cmake
-        self.commands = []
-        self.__command_index = 0
-
-    def get_commands(self):
-        raise NotImplementedError('get_commands')
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        return self.next()
-
-    def next(self):
-        if self.__command_index >= len(self.commands):
-            raise StopIteration()
-        self.__command_index += 1
-        return self.commands[self.__command_index - 1]
 
 
 def create_env_file(package, context):
@@ -283,10 +212,14 @@ class CatkinJob(Job):
         # Setup build variables
         pkg_dir = os.path.join(self.context.source_space_abs, self.package_path)
         build_space = create_build_space(self.context.build_space_abs, self.package.name)
+        # Devel space for this package
         if self.context.isolate_devel:
             devel_space = os.path.join(self.context.devel_space_abs, self.package.name)
+        elif self.context.link_devel:
+            devel_space = get_linked_devel_path(self.context.devel_space_abs, self.package.name, mkdirs=True)
         else:
             devel_space = self.context.devel_space_abs
+        # Install space for this package
         if self.context.isolate_install:
             install_space = os.path.join(self.context.install_space_abs, self.package.name)
         else:
@@ -314,6 +247,23 @@ class CatkinJob(Job):
             [MAKE_EXEC] + handle_make_arguments(self.context.make_args + self.context.catkin_make_args),
             build_space
         ))
+
+        # Symlink command if linked devel
+        if self.context.link_devel:
+            commands.extend([
+                PythonCommand(
+                    append_dot_catkin_file,
+                    {'devel_space_abs': self.context.devel_space_abs,
+                     'package_source_abs': os.path.join(self.context.source_space_abs, self.package_path)},
+                    self.context.devel_space_abs),
+                PythonCommand(
+                    link_devel_products,
+                    {'devel_space_abs': self.context.devel_space_abs,
+                     'package_source_abs': os.path.join(self.context.source_space_abs, self.package_path),
+                     'package_name': self.package.name},
+                    self.context.devel_space_abs),
+            ])
+
         # Make install command, if installing
         if self.context.install:
             commands.append(InstallCommand(env_cmd, [MAKE_EXEC, 'install'], build_space))

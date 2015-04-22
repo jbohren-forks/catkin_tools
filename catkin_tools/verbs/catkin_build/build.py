@@ -588,6 +588,33 @@ def build_isolated_workspace(
         summary_notes += [clr("@!@{cf}NOTE:@| Forcing CMake to run for each package.")]
     log(context.summary(summary_notes))
 
+    # Generate setup bootstrap
+    if context.link_devel and not os.path.exists(os.path.join(ctx.devel_space_abs, '_setup_util.py')):
+        log(clr('[build] Initializing develspace...'))
+
+        # Generate an "bootstrap" package to generate setup files
+        generate_setup_bootstrap(context)
+        bootstrap_pkg_path = get_bootstrap_path(ctx.devel_space_abs, mkdirs=True)
+        bootstrap_pkg = parse_package(bootstrap_pkg_path)
+
+        # Create a CMake command to generate the setup files
+        setup_bootstrap_cmd = CMakeCommand(
+            create_env_file(, context),
+            [
+                CMAKE_EXEC,
+                bootstrap_pkg_path,
+                '-DCATKIN_DEVEL_PREFIX=' + context.devel_space_abs,
+                '-DCMAKE_INSTALL_PREFIX=' + context.install_space_abs
+            ] + context.cmake_args,
+            os.path.join(ctx.build_space_abs, bootstrap_pkg.name))
+
+        # Run the command
+        for r in setup_bootstrap_cmd.execute():
+            if type(r) is int and r != 0:
+                sys.exit(clr(
+                    "@{rf}Error:@| Could not initialize develspace in '{0}'."
+                    .format(context.devel_space_abs)))
+
     # Find list of packages in the workspace
     packages_to_be_built, packages_to_be_built_deps, all_packages = determine_packages_to_be_built(packages, context)
     completed_packages = []

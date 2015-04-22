@@ -60,6 +60,7 @@ class Context(object):
                    'devel_space',
                    'install_space',
                    'isolate_devel',
+                   'link_devel',
                    'install',
                    'isolate_install',
                    'cmake_args',
@@ -192,6 +193,7 @@ class Context(object):
         devel_space=None,
         install_space=None,
         isolate_devel=False,
+        link_devel=False,
         install=False,
         isolate_install=False,
         cmake_args=None,
@@ -220,6 +222,9 @@ class Context(object):
         :type install_space: str
         :param isolate_devel: each package will have its own develspace if True, default is False
         :type isolate_devel: bool
+        :param link_devel: each package will have its own develspace and its contents will be symlinked into a merged
+            develspace if True, default is False
+        :type link_devel: bool
         :param install: packages will be installed by invoking ``make install``, defaults to False
         :type install: bool
         :param isolate_install: packages will be installed to separate folders if True, defaults to False
@@ -263,6 +268,7 @@ class Context(object):
 
         # Handle build options
         self.isolate_devel = isolate_devel
+        self.link_devel = link_devel
         self.install = install
         self.isolate_install = isolate_install
 
@@ -397,7 +403,7 @@ class Context(object):
                 clr("@{cf}DESTDIR:@|                     @{yf}{_Context__destdir}@|"),
             ],
             [
-                clr("@{cf}Isolate Develspaces:@|         @{yf}{_Context__isolate_devel}@|"),
+                clr("@{cf}Devel Configuration:@|         @{yf}{devel_configuration}@|"),
                 clr("@{cf}Install Packages:@|            @{yf}{_Context__install}@|"),
                 clr("@{cf}Isolate Installs:@|            @{yf}{_Context__isolate_install}@|"),
             ],
@@ -436,6 +442,8 @@ class Context(object):
             'profile': self.profile,
             'extend_mode': extend_mode,
             'extend': extend_value,
+            'devel_configuration': ('Linked' if self.link_devel else 
+                                    ('Isolated' if self.isolate_devel else 'Merged')),
             'cmake_prefix_path': (self.cmake_prefix_path or ['Empty']),
             'cmake_args': ' '.join(self.__cmake_args or ['None']),
             'make_args': ' '.join(self.__make_args or ['None']),
@@ -594,6 +602,16 @@ class Context(object):
         if self.__locked:
             raise RuntimeError("Setting of context members is not allowed while locked.")
         self.__isolate_devel = value
+
+    @property
+    def link_devel(self):
+        return self.__link_devel
+
+    @link_devel.setter
+    def link_devel(self, value):
+        if self.__locked:
+            raise RuntimeError("Setting of context members is not allowed while locked.")
+        self.__link_devel = value
 
     @property
     def install(self):

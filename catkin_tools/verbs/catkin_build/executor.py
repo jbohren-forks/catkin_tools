@@ -21,7 +21,6 @@ from threading import Thread
 from .color import colorize_cmake
 
 from catkin_tools.common import remove_ansi_escape
-from catkin_tools.runner import run_command
 
 from catkin_tools.make_jobserver import jobserver_job
 
@@ -143,7 +142,7 @@ class Executor(Thread):
                             # Log that the command being run
                             self.command_started(command, command.location)
                             # Receive lines from the running command
-                            for line in run_command(command.cmd, cwd=command.location):
+                            for line in command.execute():
                                 # If it is an integer, it corresponds to the command's return code
                                 if isinstance(line, int):
                                     retcode = line
