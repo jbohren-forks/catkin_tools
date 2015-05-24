@@ -31,6 +31,23 @@ from catkin_tools.common import getcwd
 from catkin_tools.common import log
 from catkin_tools.common import find_enclosing_package
 
+try:
+    # Python3
+    from queue import Queue
+except ImportError:
+    # Python2
+    from Queue import Queue
+
+from catkin_tools.common import wide_log
+
+from catkin_tools.execution.controllers import ConsoleStatusController
+from catkin_tools.execution.executor import execute_jobs
+from catkin_tools.execution.executor import run_until_complete
+from catkin_tools.execution.jobs import Job
+from catkin_tools.execution.jobs import JobServer
+from catkin_tools.execution.stages import CmdStage
+from catkin_tools.execution.stages import FunStage
+
 from catkin_tools.context import Context
 
 from catkin_tools.jobs.job import create_env_file
@@ -39,7 +56,6 @@ from catkin_tools.jobs.job import get_build_type
 from catkin_tools.jobs.catkin import generate_setup_bootstrap
 from catkin_tools.jobs.catkin import get_bootstrap_path
 from catkin_tools.jobs.commands.cmake import CMAKE_EXEC
-from catkin_tools.jobs.commands.cmake import CMakeCommand
 
 from catkin_tools.make_jobserver import set_jobserver_max_mem
 
@@ -288,18 +304,31 @@ def main(opts):
         generate_setup_bootstrap(ctx.build_space_abs, ctx.devel_space_abs)
         bootstrap_pkg_path = get_bootstrap_path(ctx.devel_space_abs, mkdirs=True)
         bootstrap_pkg = parse_package(bootstrap_pkg_path)
-        setup_bootstrap_cmd = CMakeCommand(
-            create_env_file(bootstrap_pkg, ctx),
-            [
-                CMAKE_EXEC,
-                bootstrap_pkg_path,
-                '-DCATKIN_DEVEL_PREFIX=' + ctx.devel_space_abs,
-                '-DCMAKE_INSTALL_PREFIX=' + ctx.install_space_abs
-            ] + ctx.cmake_args,
-            os.path.join(ctx.build_space_abs, 'catkin_tools_bootstrap'))
-        for r in setup_bootstrap_cmd.run():
-            if type(r) is int and r != 0:
-                sys.exit("Couldn't generate bootstrap setup files.")
+        bootstrap_job = Job(
+            'catkin_tools_bootstrap',
+            deps=[],
+            stages=[
+                CmdStage(
+                    'bootstrap',
+                    cmd=[
+                        create_env_file(bootstrap_pkg, ctx),
+                        CMAKE_EXEC,
+                        bootstrap_pkg_path,
+                        '-DCATKIN_DEVEL_PREFIX=' + ctx.devel_space_abs,
+                        '-DCMAKE_INSTALL_PREFIX=' + ctx.install_space_abs
+                    ] + ctx.cmake_args,
+                    cwd=os.path.join(ctx.build_space_abs, 'catkin_tools_bootstrap'))
+            ])
+        try:
+            res = run_until_complete(execute_jobs(
+                [bootstrap_job],
+                Queue(),
+                continue_on_failure=False,
+                continue_without_deps=False))
+            wide_log("[build] {}".format(res))
+        except KeyboardInterrupt:
+            wide_log("[build] Interrupted by user!")
+            event_queue.put(None)
 
     start = time.time()
     try:
@@ -308,7 +337,7 @@ def main(opts):
             packages=opts.packages,
             start_with=opts.start_with,
             no_deps=opts.no_deps,
-            jobs=opts.parallel_jobs,
+            n_jobs=opts.parallel_jobs,
             force_cmake=opts.force_cmake,
             force_color=opts.force_color,
             quiet=not opts.verbose,
@@ -321,4 +350,5 @@ def main(opts):
             summarize_build=opts.summarize  # Can be True, False, or None
         )
     finally:
-        log("[build] Runtime: {0}".format(format_time_delta(time.time() - start)))
+        #log("[build] Runtime: {0}".format(format_time_delta(time.time() - start)))
+        pass

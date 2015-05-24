@@ -22,6 +22,13 @@ import time
 import yaml
 
 try:
+    # Python3
+    from queue import Queue
+except ImportError:
+    # Python2
+    from Queue import Queue
+
+try:
     from catkin_pkg.packages import find_packages
     from catkin_pkg.topological_order import topological_order_packages
 except ImportError as e:
@@ -37,9 +44,17 @@ from catkin_tools.common import get_recursive_run_depends_in_workspace
 from catkin_tools.common import log
 from catkin_tools.common import wide_log
 
-from catkin_tools.jobs.catkin import CatkinBuildJob
-from catkin_tools.jobs.cmake import CMakeBuildJob
-from catkin_tools.jobs.executor import execute_jobs
+from catkin_tools.execution.controllers import ConsoleStatusController
+from catkin_tools.execution.executor import execute_jobs
+from catkin_tools.execution.executor import run_until_complete
+from catkin_tools.execution.jobs import Job
+from catkin_tools.execution.jobs import JobServer
+from catkin_tools.execution.stages import CmdStage
+import glob 
+
+# TODO: migrate these
+from catkin_tools.jobs.catkin import catkin_build_job
+from catkin_tools.jobs.cmake import cmake_build_job
 from catkin_tools.jobs.job import get_build_type
 
 from .color import clr
@@ -128,23 +143,12 @@ def verify_start_with_option(start_with, packages, all_packages, packages_to_be_
                      "is in the workspace but would not be built with given package arguments: '{1}'"
                      .format(start_with, ' '.join(packages)))
 
-
-def build_job_factory(context, path, package, force_cmake):
-    job = None
-    build_type = get_build_type(package)
-    if build_type == 'catkin':
-        job = CatkinBuildJob(context, package, path, force_cmake)
-    elif build_type == 'cmake':
-        job = CMakeBuildJob(context, package, path, force_cmake)
-    return job
-
-
 def build_isolated_workspace(
     context,
     packages=None,
     start_with=None,
     no_deps=False,
-    jobs=None,
+    n_jobs=None,
     force_cmake=False,
     force_color=False,
     quiet=False,
@@ -172,8 +176,8 @@ def build_isolated_workspace(
     :type start_with: str
     :param no_deps: If True, the dependencies of packages will not be built first
     :type no_deps: bool
-    :param jobs: number of parallel package build jobs
-    :type jobs: int
+    :param n_jobs: number of parallel package build n_jobs
+    :type n_jobs: int
     :param force_cmake: forces invocation of CMake if True, default is False
     :type force_cmake: bool
     :param force_color: forces colored output even if terminal does not support it
@@ -276,7 +280,11 @@ def build_isolated_workspace(
         return
 
     # Assert start_with package is in the workspace
-    verify_start_with_option(start_with, packages, all_packages, packages_to_be_built + packages_to_be_built_deps)
+    verify_start_with_option(
+        start_with,
+        packages,
+        all_packages,
+        packages_to_be_built + packages_to_be_built_deps)
 
     # Remove packages before start_with
     if start_with is not None:
@@ -287,19 +295,52 @@ def build_isolated_workspace(
             else:
                 break
 
-    execute_jobs(
-        'build',
-        context,
-        jobs,
-        build_job_factory,
-        packages_to_be_built,
-        force_cmake,
-        force_color,
-        quiet,
-        interleave_output,
-        no_status,
-        limit_status_rate,
-        lock_install,
-        no_notify,
-        continue_on_failure,
-        summarize_build)
+    # Construct jobs
+    jobs = []
+    for pkg_path, pkg in packages_to_be_built:
+        # Ignore metapackages
+        if 'metapackage' in [e.tagname for e in pkg.exports]:
+            continue
+
+        # Get actual execution deps
+        all_deps = pkg.buildtool_depends + pkg.build_depends + pkg.build_export_depends
+        deps = [d for d in all_deps if d in [p.name for _, p in packages_to_be_built]]
+
+        # Create the job depends on the build type
+        build_type = get_build_type(pkg)
+        if build_type == 'catkin':
+            jobs.append(catkin_build_job(context, pkg, pkg_path, deps, force_cmake))
+        elif build_type == 'cmake':
+            jobs.append(cmake_build_job(context, pkg, pkg_path, deps, force_cmake))
+        else:
+            wide_log("[build] Skipping package '{}' because it has an unknown package build type: \"{}\"".format(pkg.name, build_type))
+
+    # Print jobs TODO: remove this / make it a debug option
+    if 0:
+        for job in jobs:
+            print('{}'.format(job.jid))
+            for stage in job.stages:
+                print('  - {} {}'.format(stage.label, type(stage)))
+
+    # Queue for communicating status
+    event_queue = Queue()
+
+    try:
+        # Spin up status output thread
+        status_thread = ConsoleStatusController(
+            'build',
+            ['package', 'packages'],
+            jobs,
+            event_queue)
+        status_thread.start()
+
+        # Block while running N jobs asynchronously
+        run_until_complete(execute_jobs(
+            jobs,
+            event_queue,
+            continue_on_failure=continue_on_failure,
+            continue_without_deps=False))
+
+    except KeyboardInterrupt:
+        wide_log("[build] Interrupted by user!")
+        event_queue.put(None)

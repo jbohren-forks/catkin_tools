@@ -22,6 +22,12 @@ import sys
 import time
 import yaml
 
+try:
+    # Python3
+    from queue import Queue
+except ImportError:
+    # Python2
+    from Queue import Queue
 
 try:
     from catkin_pkg.packages import find_packages
@@ -33,6 +39,13 @@ except ImportError as e:
         '"catkin_pkg", and that it is up to date and on the PYTHONPATH.' % e
     )
 
+from catkin_tools.execution.controllers import ConsoleStatusController
+from catkin_tools.execution.executor import execute_jobs
+from catkin_tools.execution.executor import run_until_complete
+from catkin_tools.execution.jobs import Job
+from catkin_tools.execution.jobs import JobServer
+from catkin_tools.execution.stages import CmdStage
+
 from catkin_tools.common import format_time_delta
 from catkin_tools.common import get_cached_recursive_build_depends_in_workspace
 from catkin_tools.common import get_recursive_run_depends_in_workspace
@@ -40,10 +53,11 @@ from catkin_tools.common import get_recursive_build_dependants_in_workspace
 from catkin_tools.common import log
 from catkin_tools.common import wide_log
 
-from catkin_tools.jobs.catkin import CatkinCleanJob
-from catkin_tools.jobs.cmake import CMakeCleanJob
-from catkin_tools.jobs.executor import execute_jobs
+from catkin_tools.jobs.catkin import catkin_clean_job
+from catkin_tools.jobs.cmake import cmake_clean_job
 from catkin_tools.jobs.job import get_build_type
+
+from catkin_tools.execution.jobs import JobServer
 
 from .color import clr
 
@@ -127,29 +141,65 @@ def clean_packages(
 
     # Use install_manifests to remove files from installspace
     if install:
+        # TODO: Create jobs for this
         pass
 
-    # Execute clean jobs to remove files from the develspace
     if devel:
-        execute_jobs(
-            'clean',
-            context,
-            1,  # jobs
-            clean_job_factory,
-            packages_to_be_cleaned,
-            False,  # force_cmake,
-            False,  # force_color,
-            False,  # quiet,
-            True,  # interleave_output,
-            False,  # no_status,
-            0,  # limit_status_rate,
-            False,  # lock_install,
-            False,  # no_notify,
-            True,  # continue_on_failure,
-            False  # summarize_build
-        )
+        # Construct jobs
+        jobs = []
+        for pkg_path, pkg in packages_to_be_cleaned:
+            # Ignore metapackages
+            if 'metapackage' in [e.tagname for e in pkg.exports]:
+                continue
+
+            # Get actual execution deps
+            all_deps = pkg.buildtool_depends + pkg.build_depends + pkg.build_export_depends
+            deps = [d for d in all_deps if d in [p.name for _, p in packages_to_be_cleaned]]
+
+            # Create the job depends on the build type
+            build_type = get_build_type(pkg)
+            if build_type == 'catkin':
+                jobs.append(catkin_clean_job(context, pkg.name, deps))
+            elif 0 and build_type == 'cmake':
+                jobs.append(cmake_build_job(context, pkg.name, deps))
+            else:
+                wide_log("[build] Skipping package '{}' because it has an unknown package build type: \"{}\"".format(pkg.name, build_type))
+
+        # Print jobs TODO: remove this / make it a debug option
+        if 0:
+            for job in jobs:
+                print('{}'.format(job.jid))
+                for stage in job.stages:
+                    print('  - {} {}'.format(stage.label, type(stage)))
+
+        # Initialize jobserver
+        JobServer.initialize()
+
+        # Queue for communicating status
+        event_queue = Queue()
+
+        try:
+            # Spin up status output thread
+            status_thread = ConsoleStatusController(
+                'build',
+                ['package', 'packages'],
+                jobs,
+                event_queue)
+            status_thread.start()
+
+            # Block while running N jobs asynchronously
+            run_until_complete(execute_jobs(
+                jobs,
+                event_queue,
+                continue_on_failure=True,
+                continue_without_deps=False))
+
+        except KeyboardInterrupt:
+            wide_log("[build] User interrupted!")
+            event_queue.put(None)
 
     # Remove build directories
+    # TODO: Create jobs for this
     if build:
         for path, pkg in packages_to_be_cleaned:
             build_space = os.path.join(context.build_space_abs, pkg.name)
