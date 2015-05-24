@@ -31,7 +31,7 @@ _color_translation_map = {
 
     # Job starting
     "Starting >>> {:<{}}":
-    fmt(       "Starting  @!@{gf}>>>@| @!@{cf}{:<{}}@|"),
+    fmt("Starting  @!@{gf}>>>@| @!@{cf}{:<{}}@|"),
 
     # Job finishing
     "Finished <<< {:<{}} [ {} ]":
@@ -116,24 +116,25 @@ color_mapper = ColorMapper(_color_translation_map)
 
 clr = color_mapper.clr
 
+
 class ConsoleStatusController(threading.Thread):
 
     """Status thread for displaying events to the console."""
 
     def __init__(
-        self,
-        label,
-        job_labels,
-        jobs,
-        event_queue,
-        show_stage_events=False,
-        show_buffered_stdout=False,
-        show_buffered_stderr=True,
-        show_live_stdout=False,
-        show_live_stderr=False,
-        show_active_status=True,
-        show_full_summary=False,
-        active_status_rate=20.0):
+            self,
+            label,
+            job_labels,
+            jobs,
+            event_queue,
+            show_stage_events=False,
+            show_buffered_stdout=False,
+            show_buffered_stderr=True,
+            show_live_stdout=False,
+            show_live_stderr=False,
+            show_active_status=True,
+            show_full_summary=False,
+            active_status_rate=20.0):
         """
         :param label: The label for this task (build, clean, etc)
         :param job_labels: The labels to be used for the jobs (packages, tests, etc)
@@ -167,7 +168,8 @@ class ConsoleStatusController(threading.Thread):
         self.jobs = dict([(j.jid, j) for j in jobs])
 
         # Compute the max job id length when combined with stage labels
-        self.max_jid_length = 1+max([len(jid)+max([len(s.label) for s in job.stages] or [0]) for jid, job in self.jobs.items()])
+        self.max_jid_length = 1 + \
+            max([len(jid) + max([len(s.label) for s in job.stages] or [0]) for jid, job in self.jobs.items()])
 
     def run(self):
         pending_jobs = []
@@ -203,15 +205,17 @@ class ConsoleStatusController(threading.Thread):
                         len(self.jobs),
                         JobServer.running_jobs(),
                         JobServer.max_jobs(),
-                        )
+                    )
                     # Add active jobs
                     if len(active_jobs) == 0:
                         status_line += clr(' @/@!@{kf}Waiting for jobs...@|')
                     else:
-                        status_line += ' '+', '.join([clr('[{}:{} - {}]').format(j,s,format_time_delta_short(time.time()-t)) for j, (s, t) in active_stages.items()])
+                        status_line += ' ' + \
+                            ', '.join([clr('[{}:{} - {}]').format(j, s, format_time_delta_short(time.time() - t))
+                                       for j, (s, t) in active_stages.items()])
 
                     # Print the status line
-                    #wide_log(status_line)
+                    # wide_log(status_line)
                     wide_log(status_line, rhs='', end='\r')
                     sys.stdout.flush()
                     time.sleep(1.0 / self.active_status_rate)
@@ -298,14 +302,14 @@ class ConsoleStatusController(threading.Thread):
                 if len(event.data['interleaved']) > 0:
                     if self.show_buffered_stdout:
                         prefix_color = '@!@{kf}'
-                        #wide_log(clr(prefix_color+'/'*(terminal_width()-1)))
+                        # wide_log(clr(prefix_color+'/'*(terminal_width()-1)))
                         wide_log(clr('Output << {}:{}').format(
                             event.data['job_id'],
                             event.data['label']))
                         lines = event.data['interleaved'].splitlines()
                         log('\n'.join(lines[:-1]))
                         wide_log(lines[-1])
-                        #wide_log(clr(prefix_color+'_'*(terminal_width()-1)))
+                        # wide_log(clr(prefix_color+'_'*(terminal_width()-1)))
 
                 if len(event.data['stderr']) > 0:
                     prefix_color = '@!@{yf}' if event.data['succeeded'] else '@!@{rf}'
@@ -314,27 +318,27 @@ class ConsoleStatusController(threading.Thread):
                             warned_jobs.append(event.data['job_id'])
 
                         if self.show_buffered_stderr:
-                            wide_log(clr(prefix_color+'/'*(terminal_width()-1)+'@|'))
+                            wide_log(clr(prefix_color + '/' * (terminal_width() - 1) + '@|'))
                             wide_log(clr('Warnings << {}:{}').format(
                                 event.data['job_id'],
                                 event.data['label']))
                     else:
                         if self.show_buffered_stderr:
-                            wide_log(clr(prefix_color+'/'*(terminal_width()-1)+'@|'))
+                            wide_log(clr(prefix_color + '/' * (terminal_width() - 1) + '@|'))
                             wide_log(clr('Errors << {}:{}').format(
                                 event.data['job_id'],
                                 event.data['label']))
 
                     if self.show_buffered_stderr:
-                        prefix = ''#clr(prefix_color + '>  @|')
-                        #wide_log(clr(prefix_color+'/'*(terminal_width()-1)))
-                        #for line in event.data['stderr'].splitlines():
-                            #wide_log(prefix + line)
-                        
+                        prefix = ''  # clr(prefix_color + '>  @|')
+                        # wide_log(clr(prefix_color+'/'*(terminal_width()-1)))
+                        # for line in event.data['stderr'].splitlines():
+                        #wide_log(prefix + line)
+
                         lines = event.data['stderr'].splitlines()
                         log('\n'.join(lines[:-1]))
                         wide_log(lines[-1])
-                        wide_log(clr(prefix_color+'_'*(terminal_width()-1)+'@|'))
+                        wide_log(clr(prefix_color + '_' * (terminal_width() - 1) + '@|'))
 
                 if event.data['succeeded']:
                     if self.show_stage_events:
@@ -345,7 +349,7 @@ class ConsoleStatusController(threading.Thread):
                     wide_log(clr('Failed << {}:{:<{}} [ Exited with code {} ]').format(
                         event.data['job_id'],
                         event.data['label'],
-                        max(0,self.max_jid_length - len(event.data['job_id'])),
+                        max(0, self.max_jid_length - len(event.data['job_id'])),
                         event.data['retcode']))
 
             elif 'STDERR' == eid:

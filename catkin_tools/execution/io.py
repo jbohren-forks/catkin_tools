@@ -3,6 +3,7 @@ from osrf_pycommon.process_utils import AsyncSubprocessProtocol
 
 from .events import ExecutionEvent
 
+
 class IOBufferContainer(object):
 
     """A simple buffer container for use in logging."""
@@ -11,6 +12,7 @@ class IOBufferContainer(object):
         self.stdout_buffer = b""
         self.stderr_buffer = b""
         self.interleaved_buffer = b""
+
 
 class IOBufferLogger(IOBufferContainer):
 
@@ -45,6 +47,7 @@ class IOBufferLogger(IOBufferContainer):
             job_id=self.job_id,
             label=self.label,
             data=data))
+
 
 class IOBufferProtocol(IOBufferContainer, AsyncSubprocessProtocol):
 

@@ -50,7 +50,7 @@ from catkin_tools.execution.executor import run_until_complete
 from catkin_tools.execution.jobs import Job
 from catkin_tools.execution.jobs import JobServer
 from catkin_tools.execution.stages import CmdStage
-import glob 
+import glob
 
 # TODO: migrate these
 from catkin_tools.jobs.catkin import catkin_build_job
@@ -142,6 +142,7 @@ def verify_start_with_option(start_with, packages, all_packages, packages_to_be_
             sys.exit("Package given for --start-with, '{0}', "
                      "is in the workspace but would not be built with given package arguments: '{1}'"
                      .format(start_with, ' '.join(packages)))
+
 
 def build_isolated_workspace(
     context,
@@ -313,7 +314,8 @@ def build_isolated_workspace(
         elif build_type == 'cmake':
             jobs.append(cmake_build_job(context, pkg, pkg_path, deps, force_cmake))
         else:
-            wide_log("[build] Skipping package '{}' because it has an unknown package build type: \"{}\"".format(pkg.name, build_type))
+            wide_log("[build] Skipping package '{}' because it has an unknown package build type: \"{}\"".format(
+                pkg.name, build_type))
 
     # Print jobs TODO: remove this / make it a debug option
     if 0:

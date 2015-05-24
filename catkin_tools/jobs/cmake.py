@@ -93,7 +93,7 @@ def get_multiarch():
     return decoded
 
 
-SETUP_FILE_TEMPLATE="""\
+SETUP_FILE_TEMPLATE = """\
 #!/usr/bin/env sh
 # generated from catkin_tools.verbs.catkin_build.job python module
 
@@ -120,6 +120,7 @@ export PATH="{path}$PATH"
 export PKG_CONFIG_PATH="{pkgcfg_path}$PKG_CONFIG_PATH"
 export PYTHONPATH="{pythonpath}$PYTHONPATH"
 """
+
 
 def generate_setup_file(logger, event_queue, install_target, setup_file_path):
     # Create the setup file that dependant packages will source

@@ -45,9 +45,9 @@ LINKED_DEVEL_DIRNAME = 'linked_devel'
 # List of files which shouldn't be copied
 devel_product_blacklist = [
     DOT_CATKIN_FILENAME,
-    os.path.join('etc','catkin','profile.d','05.catkin_make.bash'),
-    os.path.join('etc','catkin','profile.d','05.catkin_make_isolated.bash'),
-    os.path.join('etc','catkin','profile.d','05.catkin-test-results.sh'),
+    os.path.join('etc', 'catkin', 'profile.d', '05.catkin_make.bash'),
+    os.path.join('etc', 'catkin', 'profile.d', '05.catkin_make_isolated.bash'),
+    os.path.join('etc', 'catkin', 'profile.d', '05.catkin-test-results.sh'),
     '.rosinstall',
     'env.sh',
     'setup.bash',
@@ -388,7 +388,7 @@ def link_devel_products(logger, event_queue, devel_space_abs, package_source_abs
         for filename in files:
 
             # Don't link files on the blacklist
-            if os.path.relpath(os.path.join(source_path,filename), source_devel) in devel_product_blacklist:
+            if os.path.relpath(os.path.join(source_path, filename), source_devel) in devel_product_blacklist:
                 continue
 
             source_file = os.path.join(source_path, filename)
@@ -443,7 +443,6 @@ def link_devel_products(logger, event_queue, devel_space_abs, package_source_abs
 # job factories
 
 def catkin_build_job(context, package, package_path, dependencies, force_cmake):
-
     """Job class for building catkin packages"""
 
     # Package source space path
@@ -550,7 +549,7 @@ def catkin_clean_job(context, package_name, dependencies):
     build_space = os.path.join(context.build_space_abs, package_name)
     if not os.path.exists(build_space):
         # No-op
-        return Job(jid=package_name,deps=dependencies,stages=[])
+        return Job(jid=package_name, deps=dependencies, stages=[])
 
     # For isolated devel space, remove it entirely
     if context.isolate_devel:

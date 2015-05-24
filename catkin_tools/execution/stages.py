@@ -4,6 +4,7 @@ import os
 
 from .io import IOBufferProtocol
 
+
 class Stage(object):
 
     """A description of one of the serially-executed stages of a Job.
@@ -14,6 +15,7 @@ class Stage(object):
 
     def __init__(self, label):
         self.label = label or str(label)
+
 
 class CmdStage(Stage):
 
@@ -27,15 +29,15 @@ class CmdStage(Stage):
     """
 
     def __init__(
-        self, 
-        label,
-        cmd, 
-        cwd=os.getcwd(),
-        env=None,
-        shell=False,
-        emulate_tty=True,
-        stderr_to_stdout=False,
-        protocol=IOBufferProtocol):
+            self,
+            label,
+            cmd,
+            cwd=os.getcwd(),
+            env=None,
+            shell=False,
+            emulate_tty=True,
+            stderr_to_stdout=False,
+            protocol=IOBufferProtocol):
         """ """
 
         if not type(cmd) in [list, tuple] or not all([type(s) is str for s in cmd]):
@@ -70,8 +72,7 @@ class FunStage(Stage):
         if not callable(function):
             raise ValueError('Function stage must be callable.')
         super(FunStage, self).__init__(label)
+
         def function_proxy(logger, event_queue):
             return function(logger, event_queue, *args, **kwargs)
         self.function = function_proxy
-
-

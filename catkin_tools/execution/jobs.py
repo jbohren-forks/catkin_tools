@@ -16,6 +16,7 @@ import time
 from catkin_tools.common import log
 from catkin_tools.common import version_tuple
 
+
 class Job(object):
 
     """A Job is a series of operations, each of which is considered a "stage" of the job."""
@@ -37,8 +38,6 @@ class Job(object):
     def any_deps_failed(self, completed_jobs):
         """Return True if any dependencies which have been completed have failed."""
         return any([not completed_jobs.get(dep_id, True) for dep_id in self.deps])
-
-
 
 
 def memory_usage():
@@ -76,6 +75,7 @@ all:
 
 
 class JobServer:
+
     """
     This class implements a GNU make-compatible job server.
     """
@@ -120,7 +120,6 @@ class JobServer:
         for i in range(max_jobs):
             os.write(self.job_pipe[1], b'+')
 
-
     @staticmethod
     def _test_gnu_make_support():
         """
@@ -135,7 +134,6 @@ class JobServer:
 
         os.unlink(makefile)
         return (ret == 0)
-
 
     def _set_max_mem(self, max_mem):
         """
@@ -182,7 +180,6 @@ class JobServer:
 
         self.max_mem = max(0.0, min(100.0, float(mem_percent)))
 
-
     def _load_ok(self):
         if self.max_load is not None:
             try:
@@ -193,7 +190,6 @@ class JobServer:
                 return True
 
         return True
-
 
     def _mem_ok(self):
         if self.max_mem is not None:
@@ -222,13 +218,11 @@ class JobServer:
 
         return None
 
-
     def _release(self):
         """
         Write a token to the job pipe.
         """
         os.write(self.job_pipe[1], b'+')
-
 
     def _running_jobs(self):
 
@@ -242,7 +236,6 @@ class JobServer:
             pass
 
         return cls._singleton.max_jobs
-
 
     @classmethod
     def initialize(cls, *args, **kwargs):
@@ -270,7 +263,6 @@ class JobServer:
         # Create the jobserver singleton
         cls._singleton = JobServer(*args, **kwargs)
 
-
     @classmethod
     def set_max_mem(cls, max_mem):
         """
@@ -284,7 +276,6 @@ class JobServer:
         """
 
         cls._singleton._set_max_mem(max_mem)
-
 
     @classmethod
     def wait_acquire(cls):
@@ -305,7 +296,6 @@ class JobServer:
 
         return token
 
-
     @classmethod
     def try_acquire(cls):
         """
@@ -320,7 +310,6 @@ class JobServer:
             else:
                 yield None
 
-
     @classmethod
     def release(cls):
         """
@@ -328,11 +317,9 @@ class JobServer:
         """
         cls._singleton._release()
 
-
     @classmethod
     def gnu_make_enabled(cls):
         return cls._gnu_make_supported and cls._singleton._gnu_make_supported
-
 
     @classmethod
     def gnu_make_args(cls):
@@ -345,7 +332,6 @@ class JobServer:
         else:
             return []
 
-
     @classmethod
     def max_jobs(cls):
         """
@@ -353,7 +339,6 @@ class JobServer:
         """
 
         return cls._singleton.max_jobs
-
 
     @classmethod
     def running_jobs(cls):
@@ -368,6 +353,7 @@ class JobServer:
 
 
 class JobGuard:
+
     """
     Context manager representing a jobserver job.
     """
@@ -379,8 +365,3 @@ class JobGuard:
     def __exit__(self, exc_type, exc_val, exc_tb):
         JobServer.release()
         return False
-
-
-
-
-
