@@ -338,11 +338,16 @@ def build_isolated_workspace(
         status_thread.start()
 
         # Block while running N jobs asynchronously
-        run_until_complete(execute_jobs(
+        all_succeeded = run_until_complete(execute_jobs(
             jobs,
             event_queue,
             continue_on_failure=continue_on_failure,
             continue_without_deps=False))
+
+        if all_succeeded:
+            return 0
+        else:
+            return 1
 
     except KeyboardInterrupt:
         wide_log("[build] Interrupted by user!")

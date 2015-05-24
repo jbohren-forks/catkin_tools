@@ -272,6 +272,8 @@ def execute_jobs(
         completed=completed_jobs,
         abandoned=[j.jid for j in abandoned_jobs]))
 
+    raise asyncio.Return(all(completed_jobs.values()))
+
 
 def run_until_complete(coroutine):
     # Get event loop
