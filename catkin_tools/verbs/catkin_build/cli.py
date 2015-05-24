@@ -331,24 +331,21 @@ def main(opts):
             event_queue.put(None)
 
     start = time.time()
-    try:
-        return build_isolated_workspace(
-            ctx,
-            packages=opts.packages,
-            start_with=opts.start_with,
-            no_deps=opts.no_deps,
-            n_jobs=opts.parallel_jobs,
-            force_cmake=opts.force_cmake,
-            force_color=opts.force_color,
-            quiet=not opts.verbose,
-            interleave_output=opts.interleave_output,
-            no_status=opts.no_status,
-            limit_status_rate=opts.limit_status_rate,
-            lock_install=not opts.no_install_lock,
-            no_notify=opts.no_notify,
-            continue_on_failure=opts.continue_on_failure,
-            summarize_build=opts.summarize  # Can be True, False, or None
-        )
-    finally:
-        #log("[build] Runtime: {0}".format(format_time_delta(time.time() - start)))
-        pass
+
+    return build_isolated_workspace(
+        ctx,
+        packages=opts.packages,
+        start_with=opts.start_with,
+        no_deps=opts.no_deps,
+        n_jobs=opts.parallel_jobs,
+        force_cmake=opts.force_cmake,
+        force_color=opts.force_color,
+        quiet=not opts.verbose,
+        interleave_output=opts.interleave_output,
+        no_status=opts.no_status,
+        limit_status_rate=opts.limit_status_rate,
+        lock_install=not opts.no_install_lock,
+        no_notify=opts.no_notify,
+        continue_on_failure=opts.continue_on_failure,
+        summarize_build=opts.summarize  # Can be True, False, or None
+    )

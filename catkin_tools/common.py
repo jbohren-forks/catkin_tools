@@ -363,10 +363,6 @@ def slice_to_printed_length(string, length):
         # If no matches, then set the lookup_array to a plain range
         lookup_array = range(len(string))
     lookup_array.append(len(string))
-    #print('slen: {}'.format(len(string)))
-    #print('lookup: {}'.format(lookup_array))
-    #print('llen: {}'.format(len(lookup_array)))
-    #print('length: {}'.format(length))
     if length > len(lookup_array):
         return string
     return string[:lookup_array[length]] + clr('@|')

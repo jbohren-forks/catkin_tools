@@ -332,9 +332,6 @@ class ConsoleStatusController(threading.Thread):
                     if self.show_buffered_stderr:
                         prefix = ''  # clr(prefix_color + '>  @|')
                         # wide_log(clr(prefix_color+'/'*(terminal_width()-1)))
-                        # for line in event.data['stderr'].splitlines():
-                        #wide_log(prefix + line)
-
                         lines = event.data['stderr'].splitlines()
                         log('\n'.join(lines[:-1]))
                         wide_log(lines[-1])

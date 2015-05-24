@@ -163,8 +163,9 @@ def clean_packages(
             elif 0 and build_type == 'cmake':
                 jobs.append(cmake_build_job(context, pkg.name, deps))
             else:
-                wide_log(
-                    "[build] Skipping package '{}' because it has an unknown package build type: \"{}\"".format(pkg.name, build_type))
+                wide_log("[build] Skipping package '{}' because it has an "
+                         "unknown package build type: \"{}\"".format(
+                             pkg.name, build_type))
 
         # Print jobs TODO: remove this / make it a debug option
         if 0:
