@@ -12,10 +12,10 @@ install_requires = [
     'setuptools',
     'PyYAML',
 ]
-if sys.version_info[0] == 2 and sys.version_info[1] <= 6:
+if list(sys.version_info) < [2, 7]:
     install_requires.append('argparse')
 
-if sys.version_info[0] == 2:
+if list(sys.version_info) < [3, 4]:
     install_requires.append('trollius')
 
 # Figure out the resources that need to be installed

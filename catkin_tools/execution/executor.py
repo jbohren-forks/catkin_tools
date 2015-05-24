@@ -6,9 +6,11 @@ from itertools import tee
 try:
     # Python3
     import asyncio
+    can_yield_from = True
 except ImportError:
     # Python2
     import trollius as asyncio
+    can_yield_from = False
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -63,13 +65,13 @@ def async_job(job, threadpool, event_queue):
         if type(stage) is CmdStage:
             try:
                 # Initiate the command
-                transport, logger = yield asyncio.From(
-                    async_execute_process(
+                c =  async_execute_process(
                         stage.protocol_factory(job.jid, stage.label, event_queue),
-                        **stage.async_execute_process_kwargs))
+                        **stage.async_execute_process_kwargs)
+                transport, logger = (yield from c) if can_yield_from else (yield asyncio.From(c))
 
                 # Asynchronously yield until this command is  completed
-                retcode = yield asyncio.From(logger.complete)
+                retcode = (yield from logger.complete) if can_yield_from else (yield asyncio.From(logger.complete))
             except:
                 logger.err(str(traceback.format_exc()))
                 retcode = 1
@@ -77,11 +79,12 @@ def async_job(job, threadpool, event_queue):
         elif type(stage) is FunStage:
             try:
                 # Asynchronously yield until this function is completed
-                retcode = yield asyncio.From(get_loop().run_in_executor(
+                c =get_loop().run_in_executor(
                     threadpool,
                     stage.function,
                     logger,
-                    event_queue))
+                    event_queue)
+                retcode = (yield from c) if can_yield_from else (yield asyncio.From(c))
             except:
                 logger.err(str(traceback.format_exc()))
                 retcode = 1
@@ -106,7 +109,10 @@ def async_job(job, threadpool, event_queue):
             retcode=retcode))
 
     # Finally, return whether all stages of the job completed
-    raise asyncio.Return(job.jid, all_stages_succeeded)
+    if can_yield_from:
+        return job.jid, all_stages_succeeded
+    else:
+        raise asyncio.Return(job.jid, all_stages_succeeded)
 
 
 @asyncio.coroutine
@@ -160,7 +166,7 @@ def execute_jobs(
     while len(active_jobs) + len(queued_jobs) + len(pending_jobs) > 0:
 
         # Activate jobs while the jobserver dispenses tokens
-        while len(queued_jobs) > 0 and token_generator.next() is not None:
+        while len(queued_jobs) > 0 and next(token_generator) is not None:
             # Pop a job off of the job queue
             job = queued_jobs.pop(0)
 
@@ -189,7 +195,7 @@ def execute_jobs(
                 abandoned=[j.jid for j in abandoned_jobs]))
 
             # Capture a result once the job has finished
-            job_id, succeeded = yield asyncio.From(job_completed)
+            job_id, succeeded = (yield from job_completed) if can_yield_from else (yield asyncio.From(job_completed))
 
             # Release a jobserver token now that this job has succeeded
             JobServer.release()
