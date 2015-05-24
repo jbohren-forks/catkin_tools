@@ -15,6 +15,9 @@ install_requires = [
 if sys.version_info[0] == 2 and sys.version_info[1] <= 6:
     install_requires.append('argparse')
 
+if sys.version_info[0] == 2:
+    install_requires.append('trollius')
+
 # Figure out the resources that need to be installed
 this_dir = os.path.abspath(os.path.dirname(__file__))
 osx_resources_path = os.path.join(
