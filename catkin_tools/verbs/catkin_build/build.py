@@ -333,7 +333,8 @@ def build_isolated_workspace(
             'build',
             ['package', 'packages'],
             jobs,
-            event_queue)
+            event_queue,
+            show_active_status=not no_status)
         status_thread.start()
 
         # Block while running N jobs asynchronously
